@@ -53,7 +53,8 @@ the whole run (1 boot, 5 problems, one request at a time). A 12 GB card then has
 | speed, one request | 104 tok/s | 47 tok/s |
 | host RAM peak, one request | 21.6 GiB | 21.7 GiB |
 
-Options used: `--max-num-seqs 1 --gpu-experts 2880 --gpu-margin-bytes 150000000`. With the default margin
+How to run it, and what an 8 GB card would take: [RUNNING.md](RUNNING.md#cards-with-16-12-and-8-gb). Options
+used: `--max-num-seqs 1 --gpu-experts 2880 --gpu-margin-bytes 150000000`. With the default margin
 (200 MiB) the server's fit check allows 2,850 slots. The right number for a card has to be found by booting: the
 fit check refuses a bank that is too large, and the recorded peak shows how much is left.
 

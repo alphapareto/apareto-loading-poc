@@ -73,6 +73,73 @@ on the server's `PYTHONPATH` and pass the options after `--`, e.g.
 `python3 scripts/serve.py --profile code -- --audit --worker-cls <package>.AuditedBankWorker --scheduler-cls
 <package>.AsyncAuditedScheduler`. The audited classes subclass `BankWorker` and `AsyncBankScheduler`.
 
+## Cards with 16, 12 and 8 GB
+
+The GPU memory splits into a part that is always needed and two parts you size:
+
+| part | size | set by |
+|---|---|---|
+| the model outside the experts, CUDA context, kernels, activations | about 5.2 GiB | fixed |
+| KV cache | 21 KB per token of context: 1.30 GiB for the 64k context | `--max-model-len`, `--kv-cache-memory-bytes` |
+| expert bank | 1.77 MB per slot | `--gpu-experts` (at least 512) |
+
+Keep 0.2 to 0.3 GiB free. Experts of a keep-set that have no slot are read from host RAM when they are used,
+which works the same way and is slower.
+
+### 16 GB (measured)
+
+The `code` profile as it is: 5,256 slots, 64k context, three requests at once.
+
+```bash
+python3 scripts/serve.py --profile code
+```
+
+About 160 tokens per second aggregate with three requests, 104 with one (`-- --max-num-seqs 1`). Peak 15.2 GiB.
+
+### 12 GB (measured on a simulated card, one request at a time)
+
+```bash
+python3 scripts/serve.py --profile code -- --max-num-seqs 1 --gpu-experts 2850
+```
+
+47 tokens per second, peak 11.2 GiB, with 2,880 slots and `--gpu-margin-bytes 150000000`; 2,850 is what the
+fit check accepts at the default margin. The measurement was made on a 16 GB card with 3.98 GiB held by another
+process ([MEMORY.md](MEMORY.md#a-12-gb-card-simulated)), so a real 12 GB card may fit a few slots more or fewer.
+Three requests at once on 12 GB have not been measured.
+
+### 8 GB (predicted, not run)
+
+An 8 GB card has about 7.5 GiB addressable. After the fixed 5.2 GiB and 0.3 GiB free, about 2.0 GiB is left for
+the KV cache and the bank together. The 64k context does not fit: its KV cache leaves room for fewer than the
+512 slots a dense prefill needs. With a shorter context it should:
+
+| context | KV cache | bank | 
+|---|---|---|
+| 64k (65,737 tokens) | 1.30 GiB | about 400 slots: below the minimum, the server refuses |
+| 16k generated (17,737 tokens) | 0.35 GiB | about 950 slots |
+| 8k generated (9,737 tokens) | 0.19 GiB | about 1,050 slots |
+
+```bash
+python3 scripts/serve.py --profile code -- --max-num-seqs 1 --max-model-len 17737 \
+    --kv-cache-memory-bytes 380000000 --gpu-experts 900
+```
+
+Expect it to be much slower than 12 GB: fewer than a fifth of a keep-set's experts are in GPU memory. Nobody has
+booted this configuration; the numbers come from the table above, and LiveCodeBench as published needs the 64k
+context.
+
+### Finding the bank size for a card
+
+The exact number depends on the driver and on what else uses the GPU, so it is found by booting:
+
+1. Start with the estimate: (addressable memory − 5.2 GiB − KV cache − 0.3 GiB) / 1.77 MB.
+2. If the server refuses to start, its error states how many bytes the bank, KV cache, reserve and margin exceed
+   the free memory by. Lower `--gpu-experts` by that amount divided by 1.77 MB.
+3. After a run, `python3 scripts/server_stats.py ~/.apareto/results/<tag>` prints `gpu_peak_used`. If more than
+   0.3 GiB is left, raise `--gpu-experts`; each 100 slots are 0.17 GiB.
+
+The GPU must be otherwise unused: the launcher refuses a GPU that already has a process on it.
+
 ## LiveCodeBench v6
 
 This is Red Hat's recipe from the model card: lighteval at commit `6f0f351`, the `lcb:codegeneration_v6|0`

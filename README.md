@@ -81,7 +81,8 @@ layer) on a GPU smaller than the model, without changing the model's weights. Th
 **16 GB is the measured setup, not a limit.** How many experts sit in GPU memory is a parameter
 (`--gpu-experts`). On a smaller card the GPU holds fewer of them, and more of the experts a request uses are
 read from host RAM or computed on the CPU, which is slower but works the same way
-([docs/MEMORY.md](docs/MEMORY.md) has both memory budgets).
+([docs/MEMORY.md](docs/MEMORY.md) has both memory budgets;
+[docs/RUNNING.md](docs/RUNNING.md#cards-with-16-12-and-8-gb) has the commands for 16, 12 and 8 GB).
 
 | setup (64k context, no MTP) | requests at once | tokens per second |
 |---|---|---|
