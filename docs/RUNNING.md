@@ -94,39 +94,57 @@ The `code` profile as it is: 5,256 slots, 64k context, three requests at once.
 python3 scripts/serve.py --profile code
 ```
 
-About 160 tokens per second aggregate with three requests, 104 with one (`-- --max-num-seqs 1`). Peak 15.2 GiB.
+Up to 196 tokens per second aggregate with three requests (160 over a whole request), 104 with one
+(`-- --max-num-seqs 1`). Peak 15.2 GiB. This is the configuration the LiveCodeBench score was measured with.
+
+Faster, score not yet measured: add `--cpu-experts cores=auto:6,absent=cpu,admit=off`. Up to 215 aggregate
+(180 over a whole request).
 
 ### 12 GB (measured on a simulated card, one request at a time)
 
 ```bash
-python3 scripts/serve.py --profile code -- --max-num-seqs 1 --gpu-experts 2850
+python3 scripts/serve.py --profile code -- --max-num-seqs 1 --gpu-experts 2850 \
+    --cpu-experts cores=auto:6,absent=cpu,admit=off
 ```
 
-47 tokens per second, peak 11.2 GiB, with 2,880 slots and `--gpu-margin-bytes 150000000`; 2,850 is what the
-fit check accepts at the default margin. The measurement was made on a 16 GB card with 3.98 GiB held by another
-process ([MEMORY.md](MEMORY.md#a-12-gb-card-simulated)), so a real 12 GB card may fit a few slots more or fewer.
-Three requests at once on 12 GB have not been measured.
+Up to 75 tokens per second; 47 without the `--cpu-experts` option. Peak 11.2 GiB, measured with 2,880 slots and
+`--gpu-margin-bytes 150000000`; 2,850 is what the fit check accepts at the default margin. The measurement was
+made on a 16 GB card with 3.98 GiB held by another process
+([MEMORY.md](MEMORY.md#a-12-gb-card-simulated)), so a real 12 GB card may fit a few slots more or fewer. Three
+requests at once on 12 GB have not been measured.
 
-### 8 GB (predicted, not run)
+### 8 GB (measured on a simulated card, 32k context, one request at a time)
 
 An 8 GB card has about 7.5 GiB addressable. After the fixed 5.2 GiB and 0.3 GiB free, about 2.0 GiB is left for
-the KV cache and the bank together. The 64k context does not fit: its KV cache leaves room for fewer than the
-512 slots a dense prefill needs. With a shorter context it should:
+the KV cache and the bank together, so the context has to shrink:
 
-| context | KV cache | bank | 
+| context | KV cache | bank |
 |---|---|---|
-| 64k (65,737 tokens) | 1.30 GiB | about 400 slots: below the minimum, the server refuses |
-| 16k generated (17,737 tokens) | 0.35 GiB | about 950 slots |
-| 8k generated (9,737 tokens) | 0.19 GiB | about 1,050 slots |
+| 64k (65,737 tokens) | 1.30 GiB | about 420 slots: below the minimum of 512, the server refuses |
+| 32k generated (33,737 tokens) | 0.69 GiB | 830 slots (measured) |
+| 16k generated (17,737 tokens) | 0.35 GiB | about 1,000 slots (predicted) |
 
 ```bash
-python3 scripts/serve.py --profile code -- --max-num-seqs 1 --max-model-len 17737 \
-    --kv-cache-memory-bytes 380000000 --gpu-experts 900
+python3 scripts/serve.py --profile code -- --max-num-seqs 1 --max-model-len 33737 \
+    --kv-cache-memory-bytes 740000000 --gpu-experts 830 --gpu-margin-bytes 150000000 \
+    --cpu-experts cores=auto:6,absent=cpu,admit=off
 ```
 
-Expect it to be much slower than 12 GB: fewer than a fifth of a keep-set's experts are in GPU memory. Nobody has
-booted this configuration; the numbers come from the table above, and LiveCodeBench as published needs the 64k
-context.
+Up to 49 tokens per second, peak 7.24 GiB (measured on a 16 GB card with 7.96 GiB held by another process).
+Here the `--cpu-experts` option is what makes it usable: without it the same setup runs at up to 13 tokens per
+second, because about 110 experts are copied into GPU memory for every token. Four cores (`cores=auto:4`) gave
+46. Of the 175 LiveCodeBench problems, 60 stayed within a 32k context in all three published runs; the benchmark
+as published needs 64k.
+
+### The `--cpu-experts` setting
+
+`absent=cpu` computes the experts of a keep-set that are not in GPU memory on the CPU; `admit=off` leaves the
+contents of GPU memory unchanged during decode; `cores=auto:N` takes the last N cores of the server's affinity.
+The profile's own setting, `cores=auto:2,absent=gpu`, uses the CPU for the rescue rule only.
+
+The speeds with `absent=cpu` are measured. The LiveCodeBench score with it is not: the CPU kernel computes from
+8-bit inputs, and in these setups it does from 4% (16 GB, three requests) to 67% (8 GB) of the expert
+computations. Treat it as a faster setting whose quality you have to check for your use.
 
 ### Finding the bank size for a card
 

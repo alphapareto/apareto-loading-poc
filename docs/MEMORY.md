@@ -50,13 +50,17 @@ the whole run (1 boot, 5 problems, one request at a time). A 12 GB card then has
 | left free | 0.26 GiB | 0.27 GiB |
 | experts of a 5,018 keep-set in GPU memory | all | 2,880; the rest are read from host RAM when used |
 | expert computations read from host RAM during decode | 0% | 10.0% |
-| speed, one request | 104 tok/s | 47 tok/s |
+| speed, one request | 104 tok/s | 47 tok/s; up to 75 with the CPU computing the experts that do not fit |
 | host RAM peak, one request | 21.6 GiB | 21.7 GiB |
 
 How to run it, and what an 8 GB card would take: [RUNNING.md](RUNNING.md#cards-with-16-12-and-8-gb). Options
 used: `--max-num-seqs 1 --gpu-experts 2880 --gpu-margin-bytes 150000000`. With the default margin
 (200 MiB) the server's fit check allows 2,850 slots. The right number for a card has to be found by booting: the
 fit check refuses a bank that is too large, and the recorded peak shows how much is left.
+
+An 8 GB budget with a 32k context, measured the same way (7.96 GiB held by another process, 7.51 GiB
+addressable): bank 830 slots, 1.37 GiB; KV cache 0.69 GiB; the rest as above; peak 7.24 GiB, 0.27 GiB left free;
+up to 49 tok/s with the CPU computing the experts that do not fit, 13 without.
 
 The 12 GB figures are with a 64k context and one request. A shorter context frees KV memory for more expert
 slots (1.77 MB each). Three requests at once on 12 GB have not been measured.

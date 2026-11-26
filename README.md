@@ -84,11 +84,16 @@ read from host RAM or computed on the CPU, which is slower but works the same wa
 ([docs/MEMORY.md](docs/MEMORY.md) has both memory budgets;
 [docs/RUNNING.md](docs/RUNNING.md#cards-with-16-12-and-8-gb) has the commands for 16, 12 and 8 GB).
 
-| setup (64k context, no MTP) | requests at once | tokens per second |
+| setup (no MTP) | requests at once | up to, tokens per second |
 |---|---|---|
-| 16 GB | 3 | about 160 aggregate (measured, 3 boots) |
-| 16 GB | 1 | 104 (measured, 1 boot) |
-| 12 GB, simulated on the same GPU | 1 | 47 (measured, 1 boot) |
+| 16 GB, 64k context | 3 | 215 aggregate |
+| 16 GB, 64k context | 1 | 104 |
+| 12 GB, 64k context (simulated on the same GPU) | 1 | 75 |
+| 8 GB, 32k context (simulated on the same GPU) | 1 | 49 |
+
+Measured on one boot each, on a PCIe 3.0 x8 link. The 12 GB, 8 GB and three-request figures use the CPU for
+the experts that do not fit in GPU memory, a setting whose speed is measured and whose benchmark score is not
+yet; [docs/RESULTS.md](docs/RESULTS.md#throughput) has both settings side by side.
 
 **This is not an optimisation project.** Its purpose is to show that the experts a request needs can be
 predicted up front. The speeds above are without the model's multi-token prediction (MTP) and with the simplest

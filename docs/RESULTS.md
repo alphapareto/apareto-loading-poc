@@ -107,21 +107,32 @@ reading the speeds:
 
 ### Throughput
 
-| setup | requests at once | tokens per second | measured on |
-|---|---|---|---|
-| 16 GB | 3 | **158 to 165 aggregate** (median of the server's 10-second readings; 41 to 47 per request) | 3 boots, the full LiveCodeBench runs |
-| 16 GB | 1 | **104** (62,397 tokens in 602 s) | 1 boot, 5 problems |
-| 12 GB (simulated) | 1 | **47** (62,351 tokens in 1,319 s) | 1 boot, the same 5 problems |
+Up to, in tokens per second:
 
-- The aggregate is vLLM's own generation-throughput reading while three requests decode, for seeds 42 / 1234 /
-  4158: 162.6 / 165.3 / 158.1. With two requests running it is 130 to 138, and in the stretches of those runs
-  where one request ran alone, 88 to 91.
-- The single-request rows are end to end (prefill, refreshes and the answer swap included) on five problems
-  with up to 16,384 generated tokens each, sent one after another with `--max-num-seqs 1`.
-- **12 GB** is a 16 GB RTX 5070 Ti with 3.98 GiB held by another process, so it shows a 12 GB memory budget on
-  this GPU's compute, not a 12 GB card's speed. The bank holds 2,880 of the 5,018 experts of a keep-set, and
-  10.0% of the expert computations during decode were read from host RAM (1,678,345 of 16,779,671), against
-  none at 16 GB. Memory budget: [MEMORY.md](MEMORY.md#a-12-gb-card-simulated).
+| setup | requests at once | profile setting | with the CPU computing the experts that do not fit |
+|---|---|---|---|
+| 16 GB, 64k context | 3 | 196 aggregate (160 over a whole request) | **215 aggregate** (180 over a whole request) |
+| 16 GB, 64k context | 1 | **104** | the same: every expert of the keep-set is in GPU memory |
+| 12 GB (simulated), 64k context | 1 | 47 | **75** |
+| 8 GB (simulated), 32k context | 1 | 13 | **49** |
+
+- "Up to" is the highest of vLLM's 10-second generation-throughput readings in a run; for one request it is
+  close to the rate over the whole request.
+- **Profile setting** is the configuration the LiveCodeBench score was measured with: an expert of the keep-set
+  that is not in GPU memory is read from host RAM and copied in.
+- **The CPU column** adds `--cpu-experts cores=auto:6,absent=cpu,admit=off`: such an expert is computed on the
+  CPU and the contents of GPU memory stay fixed during decode. The CPU did 3.6% of the expert computations at
+  16 GB with three requests, 27% at 12 GB and 67% at 8 GB, with no timeouts. **Only speed has been measured
+  with this setting. The CPU kernel computes from 8-bit inputs, and the LiveCodeBench score has not been
+  measured with the CPU doing this share of the work.**
+- Each cell is 1 boot on short requests (1,500 to 2,000 generated tokens of one problem per request), except the
+  16 GB profile cells: the three-request figure over a whole request is 158 to 165 on the three full
+  LiveCodeBench runs (3 boots), and the one-request figure is 62,397 tokens in 602 s over five problems.
+- **12 GB and 8 GB** are a 16 GB RTX 5070 Ti with 3.98 and 7.96 GiB held by another process: a smaller memory
+  budget on this GPU's compute, not a smaller card's speed. Budgets: [MEMORY.md](MEMORY.md#a-12-gb-card-simulated).
+- **The test machine limits the transfers.** Each GPU ran on 8 PCIe 3.0 lanes (two cards in one desktop board,
+  an 8-core i7-9700K). Reading experts from host RAM, and prefill, go over that link; a card on 16 lanes or a
+  newer PCIe generation has two to several times the bandwidth.
 
 ### Per-request detail
 
