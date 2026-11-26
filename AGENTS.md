@@ -89,7 +89,7 @@ dependency and is never vendored or patched.
 
 ## Hardware and environment
 
-- One SM120 GPU per server, default profile sized for 16 GB (developed on RTX 5070 Ti, measured on PCIe 3.0 x8); TP=1, PP=1, up to three requests decoding at
+- One SM120 GPU per server, default profile sized for 16 GB (developed on RTX 5070 Ti, measured on an i7-9700K / Z390 desktop, PCIe 3.0 x8); TP=1, PP=1, up to three requests decoding at
   once per server.
 - Host RAM for the whole expert store (17 GiB pinned) and paused requests' KV (25 GiB free per server, docs/MEMORY.md); NVMe for
   the ~18 GB expert layer store built from the checkpoint by `scripts/build_layer_store.py`.
