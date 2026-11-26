@@ -112,7 +112,7 @@ Up to, in tokens per second:
 | setup | requests at once | profile setting | with the CPU computing the experts that do not fit |
 |---|---|---|---|
 | 16 GB, 64k context | 3 | 196 aggregate (160 over a whole request) | **215 aggregate** (180 over a whole request) |
-| 16 GB, 64k context | 1 | **104** | the same: every expert of the keep-set is in GPU memory |
+| 16 GB, 64k context | 1 | **104** | **104**: no change, since every expert of the keep-set is already in GPU memory and the CPU has nothing to compute |
 | 12 GB (simulated), 64k context | 1 | 47 | **75** |
 | 8 GB (simulated), 32k context | 1 | 13 | **49** |
 
