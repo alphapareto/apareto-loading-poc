@@ -8,7 +8,7 @@ files elsewhere.
 
 | | requirement | why |
 |---|---|---|
-| GPU | one NVIDIA SM120 card (compute capability 12.0) with 16 GB, e.g. RTX 5070 Ti / 5080 | the MoE kernels are built for SM120 only |
+| GPU | one NVIDIA SM120 card (compute capability 12.0). The default profile is sized for 16 GB, e.g. RTX 5070 Ti / 5080; a smaller card needs a lower `--gpu-experts` (not measured here) | the MoE kernels are built for SM120 only |
 | driver / toolkit | a CUDA 13 driver; the CUDA 13 toolkit with `nvcc` at `$CUDA_HOME` (default `/usr/local/cuda`) | the CPU-expert server and the MoE slot kernel are compiled on first use |
 | CPU | x86-64 with AVX2/FMA/F16C, at least 3 cores per server | the rescue rule's CPU-served experts take 2 cores |
 | host RAM | 25 GiB free per server; a 32 GB machine for one server | the whole expert store pinned (17 GiB), plus paused requests' KV; measured peak 25.9 GiB ([MEMORY.md](MEMORY.md)) |

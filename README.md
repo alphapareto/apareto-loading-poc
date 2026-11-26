@@ -70,20 +70,26 @@ the numbers were produced.
 ## What it makes possible
 
 If the experts a request is about to use are known in advance, the rest do not have to be in GPU memory while
-it decodes. This repository uses that to serve **Qwen3.6-35B-A3B** (NVFP4, 35B parameters, 256 experts per layer) on
-**one 16 GB GPU**, although its expert weights alone are 16.9 GiB, without changing the model's weights:
+it decodes. This repository uses that to serve **Qwen3.6-35B-A3B** (NVFP4, 35B parameters, 256 experts per
+layer) on a GPU smaller than the model, without changing the model's weights. The measurements here are on
+**one 16 GB GPU**; the experts alone are 16.9 GiB.
 
 1. **Prefill runs dense.** Experts that are not in VRAM are streamed in from pinned host RAM, layer by layer.
 2. **The prediction is made**, and the experts it names are loaded. Each renewal loads only what it adds.
 3. **Decode runs on the predicted experts**, three requests at a time.
+
+**16 GB is the measured setup, not a limit.** How many experts sit in GPU memory is a parameter
+(`--gpu-experts`). On a smaller card the GPU holds fewer of them, and more of the experts a request uses are
+read from host RAM or computed on the CPU, which is slower but works the same way. Smaller setups have not been
+measured here ([docs/MEMORY.md](docs/MEMORY.md) lists what uses the memory).
 
 It runs on stock vLLM 0.27.1 through a plugin; vLLM itself is not patched, and clients see a normal
 OpenAI-compatible server. [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md) has the full picture.
 
 ## What you need
 
-- Linux x86-64 and an NVIDIA **SM120** GPU with 16 GB (developed on an RTX 5070 Ti), with a CUDA 13 driver and
-  toolkit.
+- Linux x86-64 and an NVIDIA **SM120** GPU (RTX 50-series), with a CUDA 13 driver and toolkit. The default
+  profile is sized for 16 GB (developed on an RTX 5070 Ti); for a smaller card, lower `--gpu-experts`.
 - Host RAM: 25 GiB free per server, so a 32 GB machine for one server (the whole 17 GiB expert store is pinned;
   measured peak 25.9 GiB, [docs/MEMORY.md](docs/MEMORY.md)), and at least 3 CPU cores per server.
 - About 85 GB of disk, NVMe preferred: 24 GB of checkpoint, 18 GB of expert store, room to build, and about 20 GB

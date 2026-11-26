@@ -5,7 +5,7 @@ What one server uses with the `code` profile: GPU memory, host RAM, and disk. Ev
 
 | | in use | you need |
 |---|---|---|
-| GPU memory | 15.2 GiB peak | a 16 GB card with nothing else on it |
+| GPU memory | 15.2 GiB peak | at the default profile, a 16 GB card with nothing else on it; less with a smaller expert bank |
 | host RAM | 25.9 GiB peak | 25 GiB free at boot; a 32 GB machine for one server |
 | disk | 43 GB (checkpoint, expert store, bundles) | about 85 GB including the build and the environments |
 
@@ -22,6 +22,11 @@ A 16 GB card reports 15.92 GiB in total; the driver keeps 0.45 GiB, which leaves
 | CUDA context, compiled kernels, activations | 0.78 GiB | by subtraction |
 | **peak over a whole run** | **15.17 to 15.21 GiB** | measured, 3 full LiveCodeBench runs, sampled every 0.1 s |
 | left free | 0.26 GiB | |
+
+This is the `code` profile, sized for a 16 GB card. The bank is the adjustable part: `--gpu-experts` sets its
+size, and everything else in the table (about 6.6 GiB) is needed whatever the bank holds. A card with less
+memory takes a smaller bank and reads more experts from host RAM, which is slower; that has not been measured
+here.
 
 The routed experts alone are 16.9 GiB, more than the card. The bank holds 5,256 of the 10,240; the rest are
 read from host RAM when a keep-set needs them ([HOW-IT-WORKS.md §6](HOW-IT-WORKS.md#6-memory-tiers-and-concurrency)).
