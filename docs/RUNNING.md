@@ -46,6 +46,17 @@ the published LiveCodeBench numbers were measured with; other settings are your 
 | `--ladder` | `config/ladder.json` | the think-end ladder ([HOW-IT-WORKS.md §5](HOW-IT-WORKS.md#5-the-think-end-ladder)); `off` turns it off |
 | `--think-bundle`, `--midrun-bundle`, `--answer-bundle` | `artifacts/code/…` | the R\* bundles |
 | `--routing-log` | off | verification only: logs every decode step's router picks for `tests/check_rescue_log.py` |
+| `--async-scheduling` | on | vLLM's asynchronous scheduling. Set by the profile (`"async_scheduling": true`); there is no command-line switch to turn it off |
+| `--enforce-eager` | off | run without `torch.compile` and CUDA graphs: slower, for measurements that need module hooks |
+| `--boot-seconds` | 2,400 | how long the launcher waits for the server to become ready before giving up |
+| `--served-model-name` | `qwen3.6-35b` | the model name clients use |
+| `--tag` | `<profile>_<UTC time>` | prefix of this run's output files; an existing tag is refused |
+| `--tool-call-parser`, `--reasoning-parser` | none, `qwen3` | passed to vLLM |
+| `--audit`, `--worker-cls`, `--scheduler-cls` | off | verification runs, see below |
+
+`--model`, `--stores`, `--artifacts`, `--device`, `--port`, `--host`, `--served-model-name`, `--tag`,
+`--tool-call-parser`, `--reasoning-parser` and `--dry-run` are options of `scripts/serve.py` itself and go before
+the `--`. `scripts/serve.py --help` and `scripts/serve_bank.py --help` list everything.
 
 The server refuses to boot on a combination that cannot work and names the numbers that conflict: the rescue
 with a host tier smaller than the whole store, a bank or KV cache that does not fit the free GPU memory, a budget
@@ -72,6 +83,19 @@ The tree ships no audit code. `scripts/serve_bank.py` takes an audited worker an
 on the server's `PYTHONPATH` and pass the options after `--`, e.g.
 `python3 scripts/serve.py --profile code -- --audit --worker-cls <package>.AuditedBankWorker --scheduler-cls
 <package>.AsyncAuditedScheduler`. The audited classes subclass `BankWorker` and `AsyncBankScheduler`.
+
+### Measurement switches
+
+Environment variables for measuring the server. None is part of a served configuration and all are off unless
+set; each that takes a path refuses an existing one.
+
+| variable | value | effect |
+|---|---|---|
+| `APARETO_HOST_PHASES` | `1` | adds the host seconds of each phase between decode steps to every request's decode statistics (`phase_<name>`) |
+| `APARETO_STEP_TIMING` | a new file | per step, the host time in the worker's own code, in vLLM's model step, in sampling, and between steps |
+| `APARETO_PROFILE_DECODE` | `<new directory>:<context>,<context>,…` | the torch profiler records 20 decode steps at each context length and writes per-kernel CUDA time to `profile_<context>.txt` |
+| `APARETO_MEMORY_SNAPSHOT` | a new directory | dumps the live GPU allocations at the end of each of the first 3 requests |
+| `APARETO_CPUX_NUMERICS` | `<new file>[:steps]`, with `--enforce-eager` | compares the GPU path, the CPU kernel and a 64-bit reference for the experts computed outside GPU memory |
 
 ## Cards with 16, 12 and 8 GB
 
@@ -151,9 +175,17 @@ as published needs 64k.
 
 ### The `--cpu-experts` setting
 
-`absent=cpu` computes the experts of a keep-set that are not in GPU memory on the CPU; `admit=off` leaves the
-contents of GPU memory unchanged during decode; `cores=auto:N` takes the last N cores of the server's affinity.
-The profile's own setting, `cores=auto:2,absent=gpu`, uses the CPU for the rescue rule only.
+The value is a comma-separated list:
+
+| item | values | meaning |
+|---|---|---|
+| `cores` | `auto:N`, or a list such as `4-7` or `6;7` | the cores the CPU expert threads run on, kept free of vLLM's own threads. `auto:N` takes the last N cores of the server's affinity and needs at least one more core for vLLM |
+| `absent` | `gpu` (profile `code`), `cpu` | what happens to an expert of the keep-set that is not in GPU memory: `gpu` reads it from host RAM and computes it on the GPU; `cpu` computes it on the CPU |
+| `admit` | `on` (default), `off` | `on` copies such experts into GPU memory during decode, replacing others; `off` leaves the contents of GPU memory unchanged during decode |
+| `timeout_us`, `per_pair_us` | 1,000 and 150 | the GPU waits `timeout_us` plus `per_pair_us` per (token, expert) pair for the CPU's result, then computes it itself |
+
+The `code` profile's setting, `cores=auto:2,absent=gpu`, uses the CPU for the rescue rule only. The other
+profiles use `cores=auto:6,absent=cpu,admit=off`, the fastest of the variants measured.
 
 The speeds with `absent=cpu` are measured. The LiveCodeBench score with it is not: the CPU kernel computes from
 8-bit inputs, and in these setups it does from 4% (16 GB, three requests) to 67% (8 GB) of the expert

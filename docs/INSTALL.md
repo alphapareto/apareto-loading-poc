@@ -122,7 +122,10 @@ Each path has a default, and an environment variable and a `scripts/serve.py` fl
 | expert stores | `$APARETO_HOME/stores` | `APARETO_STORES` | `--stores` |
 | R\* bundles | `artifacts/` | `APARETO_ARTIFACTS` | `--artifacts` |
 | GPU | 0 | `APARETO_DEVICE` | `--device` |
-| CPU cores for the rescue's CPU experts | the last 2 of the server's cores | `APARETO_CPU_EXPERT_CORES` (e.g. `6;7`) | — |
+| port | 8000 | `APARETO_PORT` | `--port` |
+| CPU cores for the CPU experts | the profile's `cores=auto:N` | `APARETO_CPU_EXPERT_CORES` (e.g. `6;7`) | `-- --cpu-experts cores=…` |
+| directory the checkpoint must lie in | the checkpoint's parent directory | `APARETO_MODEL_STORE` | — |
+| checkpoint fingerprint | cached after the first full hash | `APARETO_FULL_FINGERPRINT=1` hashes again | — |
 
 `python3 scripts/serve.py --profile code --dry-run` prints the resolved server command and lists any input
 that is missing.
