@@ -22,7 +22,10 @@
   that comes from more servers (one per GPU).
 - **Prefix caching is off.** R\* reads features captured during prefill, and a cached prefix would skip that
   prefill.
-- **No speculative decoding.** The model's MTP head is not served; the server refuses a speculative config.
+- **No speculative decoding.** The model's MTP head is not served; the server refuses a speculative config. All
+  published speeds are therefore without MTP.
+- **Not tuned for speed.** The release shows that the prediction works. Placement of experts between GPU memory,
+  host RAM and the CPU is the simplest that follows from the prediction.
 - **Single-turn requests.** Each request is prefilled from its first token; a conversation's earlier turns are
   not reused.
 - **Host RAM.** The rescue needs the whole expert store pinned in host RAM (17 GiB) plus room for paused

@@ -80,8 +80,18 @@ layer) on a GPU smaller than the model, without changing the model's weights. Th
 
 **16 GB is the measured setup, not a limit.** How many experts sit in GPU memory is a parameter
 (`--gpu-experts`). On a smaller card the GPU holds fewer of them, and more of the experts a request uses are
-read from host RAM or computed on the CPU, which is slower but works the same way. Smaller setups have not been
-measured here ([docs/MEMORY.md](docs/MEMORY.md) lists what uses the memory).
+read from host RAM or computed on the CPU, which is slower but works the same way
+([docs/MEMORY.md](docs/MEMORY.md) has both memory budgets).
+
+| setup (64k context, no MTP) | requests at once | tokens per second |
+|---|---|---|
+| 16 GB | 3 | about 160 aggregate (measured, 3 boots) |
+| 16 GB | 1 | 104 (measured, 1 boot) |
+| 12 GB, simulated on the same GPU | 1 | 47 (measured, 1 boot) |
+
+**This is not an optimisation project.** Its purpose is to show that the experts a request needs can be
+predicted up front. The speeds above are without the model's multi-token prediction (MTP) and with the simplest
+placement of experts between GPU memory and host RAM; both leave a lot of speed on the table.
 
 It runs on stock vLLM 0.27.1 through a plugin; vLLM itself is not patched, and clients see a normal
 OpenAI-compatible server. [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md) has the full picture.
@@ -89,7 +99,7 @@ OpenAI-compatible server. [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md) has the f
 ## What you need
 
 - Linux x86-64 and an NVIDIA **SM120** GPU (RTX 50-series), with a CUDA 13 driver and toolkit. The default
-  profile is sized for 16 GB (developed on an RTX 5070 Ti); for a smaller card, lower `--gpu-experts`.
+  profile is sized for 16 GB (developed on an RTX 5070 Ti); for a smaller card, lower `--gpu-experts` ([measured for a 12 GB budget](docs/MEMORY.md#a-12-gb-card-simulated)).
 - Host RAM: 25 GiB free per server, so a 32 GB machine for one server (the whole 17 GiB expert store is pinned;
   measured peak 25.9 GiB, [docs/MEMORY.md](docs/MEMORY.md)), and at least 3 CPU cores per server.
 - About 85 GB of disk, NVMe preferred: 24 GB of checkpoint, 18 GB of expert store, room to build, and about 20 GB

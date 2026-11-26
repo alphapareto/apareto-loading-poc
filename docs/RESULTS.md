@@ -94,6 +94,37 @@ below in both.
 
 ## Speed and memory (`code` profile)
 
+This is a proof that the experts can be predicted, not an optimised server. Three things to keep in mind when
+reading the speeds:
+
+- **No MTP.** The model's multi-token-prediction head (speculative decoding) is not used; every token is one
+  full forward pass.
+- **A 64k context.** The server is sized for 64,000 generated tokens after the prompt (a 65,737-token context),
+  and the KV cache for that is allocated in every configuration below.
+- **Placement is not tuned.** Which experts sit in GPU memory and which are read from host RAM or computed on
+  the CPU follows the prediction in the simplest way. MTP and better RAM/VRAM placement are where further speed
+  would come from; neither is attempted here.
+
+### Throughput
+
+| setup | requests at once | tokens per second | measured on |
+|---|---|---|---|
+| 16 GB | 3 | **158 to 165 aggregate** (median of the server's 10-second readings; 41 to 47 per request) | 3 boots, the full LiveCodeBench runs |
+| 16 GB | 1 | **104** (62,397 tokens in 602 s) | 1 boot, 5 problems |
+| 12 GB (simulated) | 1 | **47** (62,351 tokens in 1,319 s) | 1 boot, the same 5 problems |
+
+- The aggregate is vLLM's own generation-throughput reading while three requests decode, for seeds 42 / 1234 /
+  4158: 162.6 / 165.3 / 158.1. With two requests running it is 130 to 138, and in the stretches of those runs
+  where one request ran alone, 88 to 91.
+- The single-request rows are end to end (prefill, refreshes and the answer swap included) on five problems
+  with up to 16,384 generated tokens each, sent one after another with `--max-num-seqs 1`.
+- **12 GB** is a 16 GB RTX 5070 Ti with 3.98 GiB held by another process, so it shows a 12 GB memory budget on
+  this GPU's compute, not a 12 GB card's speed. The bank holds 2,880 of the 5,018 experts of a keep-set, and
+  10.0% of the expert computations during decode were read from host RAM (1,678,345 of 16,779,671), against
+  none at 16 GB. Memory budget: [MEMORY.md](MEMORY.md#a-12-gb-card-simulated).
+
+### Per-request detail
+
 | | development run, seed 42 (measured, 1 boot) | this release, seeds 42 / 1234 / 4158 (measured, 3 boots) |
 |---|---|---|
 | think decode tok/s per request, median | 43.4 | 45.3 / 47.0 / 41.2 |
