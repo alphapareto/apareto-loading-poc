@@ -3,10 +3,11 @@
 **The KV cache and hidden stream state of a Mixture-of-Experts model can be used to predict which experts it will
 need for the answer.**
 
-This repository is a proof of concept of that claim. After prefill, a small network reads the model's key/value
-cache entries and its hidden (residual) stream at a few layers, and predicts which of the model's 10,240 experts
-the answer will use. The model then generates with only the predicted half of its experts, and scores within
-seed-to-seed spread of the full model.
+This repository is a proof of concept of that claim. A small network reads the model's key/value cache entries
+and its hidden (residual) stream at a few layers, and predicts which of the model's 10,240 experts it will use
+next. It makes the prediction when the prompt has been read, renews it every 1,056 tokens while the model
+thinks, and makes it once more before the answer. The model generates with only the predicted half of its
+experts, and scores within seed-to-seed spread of the full model.
 
 ## Why it matters
 
@@ -23,10 +24,10 @@ to prompt. That makes expert placement a problem as soon as the model is larger 
    without. Here, half of them are never loaded for the request, and a router pick that lands on one of them is
    skipped instead of computed. That saves memory and work, not only transfer time.
 
-Prediction turns these into decisions that can be made per request. If the experts a prompt will use are known
-right after the prompt is read, an engine can put exactly those on the GPU, leave the rest in host memory or on
-the CPU, and skip the ones the request does not need, all before generation starts. This proof of concept shows
-that the prediction is good enough to act on: the model generates on the predicted experts and keeps its score.
+Prediction turns these into decisions that can be made per request, and renewed while it runs. If the experts
+a request is about to use are known ahead of time, an engine can put exactly those on the GPU, leave the rest
+in host memory or on the CPU, and skip the ones the request does not need. This proof of concept shows that the
+prediction is good enough to act on: the model generates on the predicted experts and keeps its score.
 
 ## The evidence
 
@@ -45,26 +46,26 @@ the numbers were produced.
 
 ## What is predicted, and from what
 
-- **Read:** at the end of prefill, 16 activations on 8 token positions: the key and value projections of 10
+- **Read:** 16 activations on 8 token positions: the key and value projections of 10
   attention layers (what goes into the KV cache) and the hidden stream entering 6 layers.
 - **Predict:** Rankfield (R\*) is a two-tower retrieval network (dual encoder) with an aggregation head that
   predicts a ranking of the model's experts for a request. A budget cuts the ranking into the request's
   **keep-set**: 5,018 of the 10,240 (layer, expert) seats, 49%.
 - **Use:** decode runs on the keep-set. A router pick outside it is dropped, except that a fixed rule restores at
   most one dropped pick per token and layer.
-- **Refresh:** while the model thinks, the same read is repeated every 1,056 tokens and the keep-set updated;
-  at `</think>` a third network predicts the keep-set for the answer.
+- **When:** first at the end of prefill. While the model thinks, the read is repeated every 1,056 tokens and
+  the keep-set updated. At `</think>` a third network predicts the keep-set for the answer.
 
 [docs/SELECTION.md](docs/SELECTION.md) follows the prediction through the code, step by step.
 
 ## What it makes possible
 
-If the experts a request needs are known after prefill, the rest do not have to be in GPU memory while it
-decodes. This repository uses that to serve **Qwen3.6-35B-A3B** (NVFP4, 35B parameters, 256 experts per layer) on
+If the experts a request is about to use are known in advance, the rest do not have to be in GPU memory while
+it decodes. This repository uses that to serve **Qwen3.6-35B-A3B** (NVFP4, 35B parameters, 256 experts per layer) on
 **one 16 GB GPU**, although its expert weights alone are 16.9 GiB, without changing the model's weights:
 
 1. **Prefill runs dense.** Experts that are not in VRAM are streamed in from pinned host RAM, layer by layer.
-2. **The prediction is made**, and the experts it names are loaded.
+2. **The prediction is made**, and the experts it names are loaded. Each renewal loads only what it adds.
 3. **Decode runs on the predicted experts**, three requests at a time.
 
 It runs on stock vLLM 0.27.1 through a plugin; vLLM itself is not patched, and clients see a normal
