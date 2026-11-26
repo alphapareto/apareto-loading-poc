@@ -1,31 +1,73 @@
 # apareto-loading-poc
 
-Serve **Qwen3.6-35B-A3B** (NVFP4, 35B parameters, 256 experts per layer) on **one 16 GB GPU**, although its
-expert weights alone are 16.9 GiB, without changing the model's weights.
+**The experts a Mixture-of-Experts model will need to answer a prompt can be predicted from its own state after
+reading the prompt: the KV cache and the hidden stream.**
 
-This is a proof of concept. It shows that **it is possible to predict, from a request's prefill, which experts
-will contribute to solving it**, and to decode on those experts alone. The evidence is LiveCodeBench v6, run the
-way Red Hat evaluates the same checkpoint: decoding on a predicted 49% of the experts scores within seed-to-seed
-spread of the dense model, on problems the predictor was trained on and on problems it has never seen
-([docs/RESULTS.md](docs/RESULTS.md)).
+This repository is a proof of concept of that claim. After prefill, a small network reads the model's key/value
+cache entries and its hidden (residual) stream at a few layers, and predicts which of the model's 10,240 experts
+the answer will use. The model then generates with only the predicted half of its experts, and scores within
+seed-to-seed spread of the full model.
 
-## The idea in one paragraph
+## Why it matters
 
-Prefill and decode use the experts differently. Prefill pushes the whole prompt through every layer once, so
-it needs every expert briefly. Decode runs one token at a time for thousands of steps, and each request keeps
-coming back to a fraction of the experts. The loader therefore makes expert residency **phase-dependent**:
+A Mixture-of-Experts model routes every token through a few of its experts, and which ones differs from prompt
+to prompt. That makes expert placement a problem as soon as the model is larger than the GPU:
+
+1. **The experts in use should be on the GPU.** An expert that sits in GPU memory is computed at full speed. One
+   that has to be fetched from host RAM, or computed on the CPU, costs far more. How fast a model generates is
+   therefore decided by whether the experts it actually uses are the ones in GPU memory.
+2. **Inference engines already split the work.** Engines such as Strata and Basalt divide a model between GPU
+   and CPU so that it runs on hardware that cannot hold it whole. The split is only as good as the choice of
+   what goes where, and today that choice is made without knowing what the request will need.
+3. **Some experts do not need to be computed at all.** The prediction also says which experts a request can do
+   without. Here, half of them are never loaded for the request, and a router pick that lands on one of them is
+   skipped instead of computed. That saves memory and work, not only transfer time.
+
+Prediction turns these into decisions that can be made per request. If the experts a prompt will use are known
+right after the prompt is read, an engine can put exactly those on the GPU, leave the rest in host memory or on
+the CPU, and skip the ones the request does not need, all before generation starts. This proof of concept shows
+that the prediction is good enough to act on: the model generates on the predicted experts and keeps its score.
+
+## The evidence
+
+LiveCodeBench v6, 175 problems, three seeds, run the way Red Hat evaluates the same checkpoint. The predictor was
+trained on 70 of the problems; the other 105 were held out on purpose.
+
+| problems solved (mean of 3 seeds) | all experts | predicted 49% of the experts |
+|---|---|---|
+| **held out** (105 problems the predictor has never seen) | 69.3 (66.0%) | 68.3 (65.1%) |
+| trained (70 problems) | 60.3 (86.2%) | 59.0 (84.3%) |
+| all 175 | 129.7 (74.1%) | 127.3 (72.8%) |
+
+The differences are inside the seed-to-seed spread of about 8 problems. The prediction holds on prompts the
+predictor has not seen as well as on those it has. [docs/RESULTS.md](docs/RESULTS.md) has every seed and how
+the numbers were produced.
+
+## What is predicted, and from what
+
+- **Read:** at the end of prefill, 16 activations on 8 token positions: the key and value projections of 10
+  attention layers (what goes into the KV cache) and the hidden stream entering 6 layers.
+- **Predict:** Rankfield (R\*) is a two-tower retrieval network (dual encoder) with an aggregation head that
+  predicts a ranking of the model's experts for a request. A budget cuts the ranking into the request's
+  **keep-set**: 5,018 of the 10,240 (layer, expert) seats, 49%.
+- **Use:** decode runs on the keep-set. A router pick outside it is dropped, except that a fixed rule restores at
+  most one dropped pick per token and layer.
+- **Refresh:** while the model thinks, the same read is repeated every 1,056 tokens and the keep-set updated;
+  at `</think>` a third network predicts the keep-set for the answer.
+
+[docs/SELECTION.md](docs/SELECTION.md) follows the prediction through the code, step by step.
+
+## What it makes possible
+
+If the experts a request needs are known after prefill, the rest do not have to be in GPU memory while it
+decodes. This repository uses that to serve **Qwen3.6-35B-A3B** (NVFP4, 35B parameters, 256 experts per layer) on
+**one 16 GB GPU**, although its expert weights alone are 16.9 GiB, without changing the model's weights:
 
 1. **Prefill runs dense.** Experts that are not in VRAM are streamed in from pinned host RAM, layer by layer.
-2. **At the end of prefill, Rankfield (R\*) ranks the experts for this request.** Rankfield (R\*) is a two-tower
-   retrieval network (dual encoder) with an aggregation head that predicts a ranking of the model's experts for a
-   request.
-   A budget cuts its ranking into the request's **keep-set**: by default 5,018 of the 10,240 (layer, expert)
-   seats, 49%.
-3. **Decode runs on that keep-set.** A router pick outside it is dropped, except that a fixed rule restores at
-   most one dropped pick per token and layer. While the model thinks, R\* re-reads the state every 1,056 tokens
-   and updates the keep-set; at `</think>` it selects the answer's keep-set.
+2. **The prediction is made**, and the experts it names are loaded.
+3. **Decode runs on the predicted experts**, three requests at a time.
 
-The model runs on stock vLLM 0.27.1 through a plugin, and vLLM itself is not patched. Clients see a normal
+It runs on stock vLLM 0.27.1 through a plugin; vLLM itself is not patched, and clients see a normal
 OpenAI-compatible server. [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md) has the full picture.
 
 ## What you need
