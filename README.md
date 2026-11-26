@@ -1,7 +1,7 @@
 # apareto-loading-poc
 
-**The experts a Mixture-of-Experts model will need to answer a prompt can be predicted from its own state after
-reading the prompt: the KV cache and the hidden stream.**
+**The KV cache and hidden stream state of a Mixture-of-Experts model can be used to predict which experts it will
+need for the answer.**
 
 This repository is a proof of concept of that claim. After prefill, a small network reads the model's key/value
 cache entries and its hidden (residual) stream at a few layers, and predicts which of the model's 10,240 experts
