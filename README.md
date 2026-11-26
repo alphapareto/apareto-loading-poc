@@ -88,12 +88,12 @@ read from host RAM or computed on the CPU, which is slower but works the same wa
 ([docs/MEMORY.md](docs/MEMORY.md) has both memory budgets;
 [docs/RUNNING.md](docs/RUNNING.md#cards-with-16-12-and-8-gb) has the commands for 16, 12 and 8 GB).
 
-| setup (no MTP) | requests at once | up to, tokens per second |
-|---|---|---|
-| 16 GB, 64k context | 3 | 215 aggregate |
-| 16 GB, 64k context | 1 | 104 |
-| 12 GB, 64k context (simulated on the same GPU) | 1 | 75 |
-| 8 GB, 32k context (simulated on the same GPU) | 1 | 49 |
+| setup (no MTP) | requests at once | up to, tokens per second | start with |
+|---|---|---|---|
+| 16 GB, 64k context | 3 | 215 aggregate | `--profile code-16gb-fast` |
+| 16 GB, 64k context | 1 | 104 | `--profile code -- --max-num-seqs 1` |
+| 12 GB, 64k context (simulated on the same GPU) | 1 | 75 | `--profile code-12gb` |
+| 8 GB, 32k context (simulated on the same GPU) | 1 | 49 | `--profile code-8gb` |
 
 Measured on one boot each, on a desktop with an Intel Core i7-9700K (8 cores, no hyper-threading), Intel Z390
 chipset, 96 GB of DDR4-2666 memory (dual channel), RTX 5070 Ti on a PCIe 3.0 x8 link. The 12 GB, 8 GB and three-request figures use the CPU for
@@ -111,7 +111,7 @@ OpenAI-compatible server. [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md) has the f
 ## What you need
 
 - Linux x86-64 and an NVIDIA **SM120** GPU (RTX 50-series), with a CUDA 13 driver and toolkit. The default
-  profile is sized for 16 GB (developed on an RTX 5070 Ti); for a smaller card, lower `--gpu-experts` ([measured for a 12 GB budget](docs/MEMORY.md#a-12-gb-card-simulated)).
+  profile is sized for 16 GB (developed on an RTX 5070 Ti); for a smaller card use `--profile code-12gb` or `--profile code-8gb` ([measured for a 12 GB budget](docs/MEMORY.md#a-12-gb-card-simulated)).
 - Host RAM: 26 GiB free per server, so a 32 GB machine for one server (the whole 17 GiB expert store is pinned;
   measured peak 25.9 GiB with three requests and 21.6 GiB with one, [docs/MEMORY.md](docs/MEMORY.md)), and at
   least 3 CPU cores per server.
@@ -142,6 +142,10 @@ The `code` profile ([config/profiles.json](config/profiles.json)) sets a 65,737-
 keep-set, 5,256 expert slots on the GPU, three requests decoding at once, the rescue rule and the think-end
 ladder. Every one of these is a startup parameter: `python3 scripts/serve.py --profile code -- --budget 4608`
 serves a smaller keep-set, `--budget 10240` the unmasked model ([docs/RUNNING.md](docs/RUNNING.md#parameters)).
+
+The same file has three variants of it that change only memory sizes and where experts outside GPU memory are
+computed: `code-16gb-fast`, `code-12gb` and `code-8gb`
+([docs/RUNNING.md](docs/RUNNING.md#cards-with-16-12-and-8-gb)). The LiveCodeBench score was measured with `code`.
 
 ## Results
 

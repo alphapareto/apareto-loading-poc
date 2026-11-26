@@ -86,6 +86,17 @@ The GPU memory splits into a part that is always needed and two parts you size:
 Keep 0.2 to 0.3 GiB free. Experts of a keep-set that have no slot are read from host RAM when they are used,
 which works the same way and is slower.
 
+Each setup below is a profile in [config/profiles.json](../config/profiles.json), so it starts with one option:
+
+| card | profile | requests at once | context |
+|---|---|---|---|
+| 16 GB, as benchmarked | `code` | 3 | 64k |
+| 16 GB, fastest | `code-16gb-fast` | 3 | 64k |
+| 12 GB | `code-12gb` | 1 | 64k |
+| 8 GB | `code-8gb` | 1 | 32k |
+
+The LiveCodeBench score was measured with `code` only. Options after `--` still override a profile's values.
+
 ### 16 GB (measured)
 
 The `code` profile as it is: 5,256 slots, 64k context, three requests at once.
@@ -94,23 +105,23 @@ The `code` profile as it is: 5,256 slots, 64k context, three requests at once.
 python3 scripts/serve.py --profile code
 ```
 
-Up to 215 tokens per second aggregate with three requests when
-`-- --cpu-experts cores=auto:6,absent=cpu,admit=off` is added, and up to 104 with one request
-(`-- --max-num-seqs 1`). Peak 15.2 GiB. The LiveCodeBench score was measured with the profile as it is, which
-reaches up to 196.
+```bash
+python3 scripts/serve.py --profile code-16gb-fast
+```
 
-Faster, score not yet measured: add `--cpu-experts cores=auto:6,absent=cpu,admit=off`. Up to 215 aggregate
-(180 over a whole request).
+The same with `--cpu-experts cores=auto:6,absent=cpu,admit=off`: up to 215 tokens per second aggregate with
+three requests. With one request (`--profile code -- --max-num-seqs 1`) up to 104. Peak 15.2 GiB. The
+LiveCodeBench score was measured with `code`, which reaches up to 196.
 
 ### 12 GB (measured on a simulated card, one request at a time)
 
 ```bash
-python3 scripts/serve.py --profile code -- --max-num-seqs 1 --gpu-experts 2850 \
-    --cpu-experts cores=auto:6,absent=cpu,admit=off
+python3 scripts/serve.py --profile code-12gb
 ```
 
-Up to 75 tokens per second. Peak 11.2 GiB, measured with 2,880 slots and
-`--gpu-margin-bytes 150000000`; 2,850 is what the fit check accepts at the default margin. The measurement was
+The profile is `code` with `--max-num-seqs 1 --gpu-experts 2880 --gpu-margin-bytes 150000000
+--cpu-experts cores=auto:6,absent=cpu,admit=off`. Up to 75 tokens per second, peak 11.2 GiB. At the default
+margin the fit check accepts 2,850 slots. The measurement was
 made on a 16 GB card with 3.98 GiB held by another process
 ([MEMORY.md](MEMORY.md#a-12-gb-card-simulated)), so a real 12 GB card may fit a few slots more or fewer. Three
 requests at once on 12 GB have not been measured.
@@ -127,10 +138,11 @@ the KV cache and the bank together, so the context has to shrink:
 | 16k generated (17,737 tokens) | 0.35 GiB | about 1,000 slots (predicted) |
 
 ```bash
-python3 scripts/serve.py --profile code -- --max-num-seqs 1 --max-model-len 33737 \
-    --kv-cache-memory-bytes 740000000 --gpu-experts 830 --gpu-margin-bytes 150000000 \
-    --cpu-experts cores=auto:6,absent=cpu,admit=off
+python3 scripts/serve.py --profile code-8gb
 ```
+
+The profile is `code` with `--max-num-seqs 1 --max-model-len 33737 --kv-cache-memory-bytes 740000000
+--gpu-experts 830 --gpu-margin-bytes 150000000 --cpu-experts cores=auto:6,absent=cpu,admit=off`.
 
 Up to 49 tokens per second, peak 7.24 GiB (measured on a 16 GB card with 7.96 GiB held by another process).
 Here the `--cpu-experts` option is what makes it usable: without it about 110 experts are copied into GPU memory

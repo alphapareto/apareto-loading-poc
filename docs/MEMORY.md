@@ -54,13 +54,14 @@ the whole run (1 boot, 5 problems, one request at a time). A 12 GB card then has
 
 How to run it, and what an 8 GB card would take: [RUNNING.md](RUNNING.md#cards-with-16-12-and-8-gb). Options
 used: `--max-num-seqs 1 --gpu-experts 2880 --gpu-margin-bytes 150000000`, and for the speed
-`--cpu-experts cores=auto:6,absent=cpu,admit=off`. With the default margin
+`--cpu-experts cores=auto:6,absent=cpu,admit=off`; together they are the `code-12gb` profile
+(`python3 scripts/serve.py --profile code-12gb`). With the default margin
 (200 MiB) the server's fit check allows 2,850 slots. The right number for a card has to be found by booting: the
 fit check refuses a bank that is too large, and the recorded peak shows how much is left.
 
 An 8 GB budget with a 32k context, measured the same way (7.96 GiB held by another process, 7.51 GiB
 addressable): bank 830 slots, 1.37 GiB; KV cache 0.69 GiB; the rest as above; peak 7.24 GiB, 0.27 GiB left free;
-up to 49 tok/s.
+up to 49 tok/s. This is the `code-8gb` profile.
 
 The speeds are the highest measured, without MTP; the 12 GB, 8 GB and three-request figures use the CPU for the
 experts that do not fit ([RESULTS.md](RESULTS.md#throughput)). The 12 GB figures are with a 64k context and one request. A shorter context frees KV memory for more expert

@@ -25,7 +25,7 @@ LiveCodeBench v6.
 apareto_loader/            core library: config, store and layer store, bank, selector adapter, taps, think mode
 apareto_loader/vllm027/    the vLLM 0.27 plugin: loader, model, worker, scheduler, middleware, MoE kernels, ladder
   cpu_experts_src/         C++/CUDA sources for the CPU-served experts of the rescue (JIT-built on first use)
-config/                    profiles.json: the code profile's server options and R* bundles; ladder.json: the think-end
+config/                    profiles.json: server options and R* bundles of the code profile and its 16/12/8 GB variants; ladder.json: the think-end
                            ladder; vllm-0.27.1-stock.sha256: the reference stock-vLLM manifest
 scripts/                   entry points: server launcher, store builders, environment setup, run statistics
   serve.py                 start the server for one profile (wraps serve_bank.py)

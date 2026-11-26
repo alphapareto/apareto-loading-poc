@@ -1,5 +1,5 @@
 {
-  "_comment": "Serving profile for scripts/serve.py. 'bundles' are paths relative to the artifacts directory; 'server' are scripts/serve_bank.py options, each of which can be overridden after `--`. The values are the configuration the published LiveCodeBench numbers were measured with.",
+  "_comment": "Serving profiles for scripts/serve.py. 'bundles' are paths relative to the artifacts directory; 'server' are scripts/serve_bank.py options, each of which can be overridden after `--`. 'code' is the configuration the published LiveCodeBench numbers were measured with. The other profiles change only memory sizes and where experts outside GPU memory are computed; their speed is measured and their LiveCodeBench score is not.",
   "code": {
     "description": "LiveCodeBench v6 with Red Hat's lighteval recipe: thinking on, up to 64,000 generated tokens. Served: the static think cut blended 0.5/0.5 with the midrun read (refreshed every 1,056 thinking tokens and at prefill), the post-think answer mask, the rescue rule, the think-end ladder, three requests decoding at once. Differs from Red Hat's serving in the ladder, three requests at once and a 65,737-token context (the longest prompt plus 64,000).",
     "bundles": {
@@ -21,6 +21,87 @@
       "midrun_weight": 0.5,
       "midrun_at_prefill": true,
       "cpu_experts": "cores=auto:2,absent=gpu",
+      "cpu_rescue": "x=0.00014,ax=0.12,gout=0.001,cap=1,phases=think+answer",
+      "ladder": "config/ladder.json",
+      "async_scheduling": true,
+      "host": "127.0.0.1"
+    }
+  },
+  "code-16gb-fast": {
+    "description": "The code profile for a 16 GB card, with keep-set experts that are not in GPU memory computed on the CPU (6 cores) and the contents of GPU memory fixed during decode. Three requests at once, 64k context. Speed measured; LiveCodeBench score not measured.",
+    "bundles": {
+      "think_bundle": "code/think",
+      "midrun_bundle": "code/midrun",
+      "answer_bundle": "code/answer"
+    },
+    "server": {
+      "budget": 5018,
+      "gpu_experts": 5256,
+      "host_tier_gib": 17.0,
+      "kv_cache_memory_bytes": 1400000000,
+      "activation_reserve_bytes": 250000000,
+      "gpu_margin_bytes": 209715200,
+      "max_num_seqs": 3,
+      "max_model_len": 65737,
+      "max_num_batched_tokens": 1024,
+      "midrun_every": 1056,
+      "midrun_weight": 0.5,
+      "midrun_at_prefill": true,
+      "cpu_experts": "cores=auto:6,absent=cpu,admit=off",
+      "cpu_rescue": "x=0.00014,ax=0.12,gout=0.001,cap=1,phases=think+answer",
+      "ladder": "config/ladder.json",
+      "async_scheduling": true,
+      "host": "127.0.0.1"
+    }
+  },
+  "code-12gb": {
+    "description": "The code profile sized for a 12 GB card: 2,880 expert slots, one request at a time, 64k context, keep-set experts that are not in GPU memory computed on the CPU (6 cores). Sizes measured on a 16 GB card with 3.98 GiB held by another process; if the fit check refuses the bank on your card, lower gpu_experts. LiveCodeBench score not measured.",
+    "bundles": {
+      "think_bundle": "code/think",
+      "midrun_bundle": "code/midrun",
+      "answer_bundle": "code/answer"
+    },
+    "server": {
+      "budget": 5018,
+      "gpu_experts": 2880,
+      "host_tier_gib": 17.0,
+      "kv_cache_memory_bytes": 1400000000,
+      "activation_reserve_bytes": 250000000,
+      "gpu_margin_bytes": 150000000,
+      "max_num_seqs": 1,
+      "max_model_len": 65737,
+      "max_num_batched_tokens": 1024,
+      "midrun_every": 1056,
+      "midrun_weight": 0.5,
+      "midrun_at_prefill": true,
+      "cpu_experts": "cores=auto:6,absent=cpu,admit=off",
+      "cpu_rescue": "x=0.00014,ax=0.12,gout=0.001,cap=1,phases=think+answer",
+      "ladder": "config/ladder.json",
+      "async_scheduling": true,
+      "host": "127.0.0.1"
+    }
+  },
+  "code-8gb": {
+    "description": "The code profile sized for an 8 GB card: 830 expert slots, one request at a time, a 33,737-token context (32,000 generated tokens), keep-set experts that are not in GPU memory computed on the CPU (6 cores). Sizes measured on a 16 GB card with 7.96 GiB held by another process; if the fit check refuses the bank on your card, lower gpu_experts. LiveCodeBench score not measured.",
+    "bundles": {
+      "think_bundle": "code/think",
+      "midrun_bundle": "code/midrun",
+      "answer_bundle": "code/answer"
+    },
+    "server": {
+      "budget": 5018,
+      "gpu_experts": 830,
+      "host_tier_gib": 17.0,
+      "kv_cache_memory_bytes": 740000000,
+      "activation_reserve_bytes": 250000000,
+      "gpu_margin_bytes": 150000000,
+      "max_num_seqs": 1,
+      "max_model_len": 33737,
+      "max_num_batched_tokens": 1024,
+      "midrun_every": 1056,
+      "midrun_weight": 0.5,
+      "midrun_at_prefill": true,
+      "cpu_experts": "cores=auto:6,absent=cpu,admit=off",
       "cpu_rescue": "x=0.00014,ax=0.12,gout=0.001,cap=1,phases=think+answer",
       "ladder": "config/ladder.json",
       "async_scheduling": true,
