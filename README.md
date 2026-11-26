@@ -18,9 +18,13 @@ to prompt. That makes expert placement a problem as soon as the model is larger 
 1. **The experts in use should be on the GPU.** An expert that sits in GPU memory is computed at full speed. One
    that has to be fetched from host RAM, or computed on the CPU, costs far more. How fast a model generates is
    therefore decided by whether the experts it actually uses are the ones in GPU memory.
-2. **Inference engines already split the work.** Engines such as Strata and Basalt divide a model between GPU
-   and CPU so that it runs on hardware that cannot hold it whole. The split is only as good as the choice of
-   what goes where, and today that choice is made without knowing what the request will need.
+2. **Inference engines split the work by looking back.** Engines such as Strata and Basalt divide a model
+   between GPU and CPU so that it runs on hardware that cannot hold it whole. They decide what goes where from
+   past routing. A request starts from a fixed profile of the experts that are used most overall. While it
+   decodes, the engine counts which experts it routes to and, in rounds, swaps the most-used ones onto the GPU.
+   llama.cpp's expert cache does the same with LRU eviction. A new prompt must therefore run a fair number of
+   tokens through the model before the GPU holds the experts it needs. When requests are short and change
+   often, as in agentic work, the split may never catch up with them.
 3. **Some experts do not need to be computed at all.** The prediction also says which experts a request can do
    without. At the budget measured here, half of them are never loaded for the request, and a router pick that
    lands on one of them is skipped instead of computed. That saves memory and work, not only transfer time.
