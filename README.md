@@ -1,4 +1,4 @@
-# apareto-loading-poc
+# Apareto loading PoC
 
 **The KV cache and hidden stream state of a Mixture-of-Experts model can be used to predict which experts it will
 need for the answer.**
