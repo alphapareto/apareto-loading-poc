@@ -31,13 +31,18 @@ prediction is good enough to act on: the model generates on the predicted expert
 
 ## The evidence
 
-LiveCodeBench v6, 175 problems, three seeds, run the way Red Hat evaluates the same checkpoint. The predictor was
-trained on 70 of the problems; the other 105 were held out on purpose.
+LiveCodeBench v6, 175 problems, three seeds, run the way Red Hat evaluates the same checkpoint.
+
+The results split the 175 problems in two:
+
+- **trained** (70 problems): the problem was part of the predictor's training data.
+- **held out** (105 problems): the problem was kept out of the training data, on purpose. The predictor's output
+  for these is a prediction about a prompt it has never seen.
 
 | problems solved (mean of 3 seeds) | all experts | predicted 49% of the experts |
 |---|---|---|
 | **held out** (105 problems the predictor has never seen) | 69.3 (66.0%) | 68.3 (65.1%) |
-| trained (70 problems) | 60.3 (86.2%) | 59.0 (84.3%) |
+| trained (70 problems that were part of the training data) | 60.3 (86.2%) | 59.0 (84.3%) |
 | all 175 | 129.7 (74.1%) | 127.3 (72.8%) |
 
 The differences are inside the seed-to-seed spread of about 8 problems. The prediction holds on prompts the

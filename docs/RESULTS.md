@@ -49,9 +49,14 @@ Problems solved, of 175:
 
 ### Trained and held-out problems
 
-R\* is a trained network. 70 of the 175 problems were part of its training data and 105 were held out, on
-purpose, so that the benchmark shows both cases (`runners/lcb/trained_problems.json` lists the 70). The same
-runs, split:
+R\* is a trained network. The 175 problems split into two groups:
+
+- **trained** (70 problems): the problem was part of R\*'s training data (66 of them for the answer network).
+- **held out** (105 problems): the problem was kept out of the training data, on purpose. For these, R\*'s
+  keep-sets are predictions for prompts it has never seen.
+
+The split was made so that the benchmark shows both cases; `runners/lcb/trained_problems.json` lists the 70. The
+same runs, split:
 
 | | seed 42 | seed 1234 | seed 4158 | mean |
 |---|---|---|---|---|

@@ -1,5 +1,5 @@
 {
- "_comment": "LiveCodeBench v6 (175 problems): the problems that were part of R*'s training data. The other 105 are held out. docs/RESULTS.md reports the two groups separately.",
+ "_comment": "LiveCodeBench v6 (175 problems): the problems that were part of R*'s training data. The other 105 were held out. docs/RESULTS.md reports the two groups separately.",
  "benchmark": "lcb:codegeneration_v6",
  "trained": [
   "3677",

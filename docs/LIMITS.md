@@ -39,7 +39,7 @@
 - **R\* bundles are fixed data.** They are not adapted per deployment, and this repository has no tooling to
   produce them.
 - **Part of the benchmark is training data.** 70 of LiveCodeBench v6's 175 problems were part of R\*'s training
-  data and 105 were held out, on purpose. [RESULTS.md](RESULTS.md) reports the two groups separately.
+  data; the other 105 were held out, on purpose. [RESULTS.md](RESULTS.md) reports the two groups separately.
 - **Other budgets are not measured.** The budget is a free parameter, and the per-layer quota is interpolated
   between the budgets the bundles list; only the default (5,018) has published numbers.
 

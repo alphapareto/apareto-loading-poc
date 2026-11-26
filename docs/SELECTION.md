@@ -228,7 +228,7 @@ print(keep.sum(axis=1))                   # the per-layer quota
 
 ## 9. Trained and held-out problems
 
-R\* is a trained network, and 70 of LiveCodeBench v6's 175 problems were part of its training data. The other
-105 were held out on purpose, so the benchmark shows both cases: prompts the network has seen and prompts it has
-not. `runners/lcb/trained_problems.json` lists the 70 (66 of them for the answer network), and
+R\* is a trained network. 70 of LiveCodeBench v6's 175 problems were part of its training data (*trained*); the
+other 105 were kept out of the training data, on purpose (*held out*). The benchmark therefore shows both cases: prompts the network has seen and
+prompts it has not. `runners/lcb/trained_problems.json` lists the 70 (66 of them for the answer network), and
 [RESULTS.md](RESULTS.md) reports the two groups separately.
