@@ -55,9 +55,11 @@ the numbers were produced.
 - **Read:** 16 activations on 8 token positions: the key and value projections of 10
   attention layers (what goes into the KV cache) and the hidden stream entering 6 layers.
 - **Predict:** Rankfield (R\*) is a two-tower retrieval network (dual encoder) with an aggregation head that
-  predicts a ranking of the model's experts for a request. A **budget** cuts the ranking into the request's
-  **keep-set**. The budget is a parameter (`--budget`, any value from 1 to 10,240 (layer, expert) seats); the
-  results here were measured at 5,018, which is 49% of the experts.
+  predicts a ranking of the model's experts for a request, from most to least needed.
+- **Choose how many to keep:** you set the **budget**, the number of experts a request keeps (`--budget`,
+  anything from 1 to all 10,240). The top of the ranking up to that number is the request's **keep-set**. A
+  smaller budget needs less memory and compute; a larger one stays closer to the full model. The results on
+  this page use 5,018 (49%) as the example; it is a setting, not a property of the method.
 - **Use:** decode runs on the keep-set. A router pick outside it is dropped, except that a fixed rule restores at
   most one dropped pick per token and layer.
 - **When:** first at the end of prefill. While the model thinks, the read is repeated every 1,056 tokens and
