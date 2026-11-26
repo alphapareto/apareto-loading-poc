@@ -1,0 +1,38 @@
+{
+ "taps": [
+  "hl2",
+  "hl4",
+  "hl8",
+  "hl14",
+  "hl20",
+  "hl27",
+  "kvl3",
+  "kvl7",
+  "kvl11",
+  "kvl15",
+  "kvl19",
+  "kvl23",
+  "kvl27",
+  "kvl31",
+  "kvl35",
+  "kvl39"
+ ],
+ "spacer_token_ids": [
+  641,
+  641,
+  641,
+  641,
+  641,
+  641,
+  641,
+  641
+ ],
+ "feature_layout": "180224 values: the taps concatenated in the order of `taps`, each 8 rows x dim, row-major",
+ "render": "chat_template, add_generation_prompt=true, enable_thinking=true",
+ "prefill": "dense, unmasked",
+ "phase": "think",
+ "read_variant": "think_open",
+ "placement": "appended after the thinking-on rendered prompt, at token-ID level",
+ "rows_read": "the 8 spacer rows, row 0 = the commit position",
+ "decode": "rolled back to COMMIT"
+}

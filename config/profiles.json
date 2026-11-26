@@ -1,0 +1,30 @@
+{
+  "_comment": "Serving profile for scripts/serve.py. 'bundles' are paths relative to the artifacts directory; 'server' are scripts/serve_bank.py options, each of which can be overridden after `--`. The values are the configuration the published LiveCodeBench numbers were measured with.",
+  "code": {
+    "description": "LiveCodeBench v6 with Red Hat's lighteval recipe: thinking on, up to 64,000 generated tokens. Served: the static think cut blended 0.5/0.5 with the midrun read (refreshed every 1,056 thinking tokens and at prefill), the post-think answer mask, the rescue rule, the think-end ladder, three requests decoding at once. Differs from Red Hat's serving in the ladder, three requests at once and a 65,737-token context (the longest prompt plus 64,000).",
+    "bundles": {
+      "think_bundle": "code/think",
+      "midrun_bundle": "code/midrun",
+      "answer_bundle": "code/answer"
+    },
+    "server": {
+      "budget": 5018,
+      "gpu_experts": 5256,
+      "host_tier_gib": 17.0,
+      "kv_cache_memory_bytes": 1400000000,
+      "activation_reserve_bytes": 250000000,
+      "gpu_margin_bytes": 209715200,
+      "max_num_seqs": 3,
+      "max_model_len": 65737,
+      "max_num_batched_tokens": 1024,
+      "midrun_every": 1056,
+      "midrun_weight": 0.5,
+      "midrun_at_prefill": true,
+      "cpu_experts": "cores=auto:2,absent=gpu",
+      "cpu_rescue": "x=0.00014,ax=0.12,gout=0.001,cap=1,phases=think+answer",
+      "ladder": "config/ladder.json",
+      "async_scheduling": true,
+      "host": "127.0.0.1"
+    }
+  }
+}

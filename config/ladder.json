@@ -1,0 +1,37 @@
+{
+ "name": "think_end_ladder",
+ "description": "Think-end ladder for 64,000-token thinking runs: nudges at 40,000 and 45,000 generated tokens when the reasoning loops, a ramp from 50,000, and a forced </think> at 60,000 that leaves the answer at least 2,000 tokens.",
+ "gates": [
+  [
+   40000,
+   100,
+   "I will output"
+  ],
+  [
+   45000,
+   75,
+   "All set.\n"
+  ]
+ ],
+ "ramp": {
+  "start": 50000,
+  "thr0": 60,
+  "decay": 2,
+  "per": 1000,
+  "floor": 50,
+  "max_fires": 1,
+  "injection": "Ready.\n"
+ },
+ "final": {
+  "at_tok": 60000,
+  "injection": "Done.\n</think>"
+ },
+ "wait_cap": 200,
+ "final_wait": 1200,
+ "safe_final": true,
+ "safe_nudge": true,
+ "nudge_wait": 1500,
+ "repeats": 4,
+ "maxn": 320,
+ "min_answer_reserve": 2000
+}

@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools==80.10.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "apareto-loading-poc"
+version = "0.1.0"
+description = "Phase-dependent expert residency for vLLM: a proof of concept"
+requires-python = ">=3.12"
+license = "LicenseRef-PolyForm-Strict-1.0.0"
+license-files = ["LICENSE.md", "NOTICE.md"]
+
+[project.entry-points."vllm.general_plugins"]
+apareto = "apareto_loader.vllm027.plugin:register"
+
+[tool.setuptools.packages.find]
+include = ["apareto_loader*"]

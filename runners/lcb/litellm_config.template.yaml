@@ -1,0 +1,25 @@
+# Red Hat's lighteval litellm configuration for RedHatAI/Qwen3.6-35B-A3B-NVFP4 (model card, "lighteval benchmarks"),
+# unchanged except for three fields:
+#   model_name / base_url  -> the apareto server
+#   concurrent_requests    -> the server's max_num_seqs (3 in the code profile): requests beyond what the server
+#                             decodes at once would queue behind it and run into the 2400 s timeout.
+#   seed                   -> one of Red Hat's seeds (42, 1234, 4158), one run per seed.
+#   cache_dir              -> inside this run's output directory: lighteval's sample cache would otherwise replay an
+#                             earlier run's generations for the same prompts and settings.
+model_parameters:
+  provider: "hosted_vllm"
+  model_name: "hosted_vllm/@SERVED_MODEL_NAME@"
+  base_url: "@BASE_URL@"
+  api_key: ""
+  cache_dir: "@CACHE_DIR@"
+  timeout: 2400
+  concurrent_requests: @CONCURRENT_REQUESTS@
+  generation_parameters:
+    temperature: 1.0
+    max_new_tokens: 64000
+    top_p: 0.95
+    top_k: 20
+    min_p: 0.0
+    presence_penalty: 1.5
+    repetition_penalty: 1.0
+    seed: @SEED@
