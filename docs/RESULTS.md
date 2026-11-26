@@ -133,7 +133,8 @@ Up to, in tokens per second:
 - **12 GB and 8 GB** are a 16 GB RTX 5070 Ti with 3.98 and 7.96 GiB held by another process: a smaller memory
   budget on this GPU's compute, not a smaller card's speed. Budgets: [MEMORY.md](MEMORY.md#a-12-gb-card-simulated).
 - **The test machine limits the transfers and the CPU compute.** Intel Core i7-9700K (8 cores, no
-  hyper-threading, AVX2), Intel Z390 chipset (ASUS PRIME Z390-A), DDR4 memory, two RTX 5070 Ti, each on 8 PCIe
+  hyper-threading, AVX2), Intel Z390 chipset (ASUS PRIME Z390-A), 96 GB of DDR4 running at 2,666 MT/s in dual channel
+  (2 × 32 GB + 2 × 16 GB), two RTX 5070 Ti, each on 8 PCIe
   3.0 lanes. Reading experts from host RAM, and prefill, go over that link; a card on 16 lanes or a
   newer PCIe generation has two to several times the bandwidth.
 

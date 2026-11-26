@@ -92,7 +92,7 @@ read from host RAM or computed on the CPU, which is slower but works the same wa
 | 8 GB, 32k context (simulated on the same GPU) | 1 | 49 |
 
 Measured on one boot each, on a desktop with an Intel Core i7-9700K (8 cores, no hyper-threading), Intel Z390
-chipset, DDR4 memory, RTX 5070 Ti on a PCIe 3.0 x8 link. The 12 GB, 8 GB and three-request figures use the CPU for
+chipset, 96 GB of DDR4-2666 memory (dual channel), RTX 5070 Ti on a PCIe 3.0 x8 link. The 12 GB, 8 GB and three-request figures use the CPU for
 the experts that do not fit in GPU memory, a setting whose speed is measured and whose benchmark score is not
 yet; [docs/RESULTS.md](docs/RESULTS.md#throughput) has both settings side by side.
 
