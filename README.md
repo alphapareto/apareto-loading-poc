@@ -6,8 +6,9 @@ need for the answer.**
 This repository is a proof of concept of that claim. A small network reads the model's key/value cache entries
 and its hidden (residual) stream at a few layers, and predicts which of the model's 10,240 experts it will use
 next. It makes the prediction when the prompt has been read, renews it every 1,056 tokens while the model
-thinks, and makes it once more before the answer. The model generates with only the predicted half of its
-experts, and scores within seed-to-seed spread of the full model.
+thinks, and makes it once more before the answer. How many experts to keep is a parameter. With it set to
+half of them, the model generates on the predicted experts alone and scores within seed-to-seed spread of the
+full model.
 
 ## Why it matters
 
@@ -21,8 +22,8 @@ to prompt. That makes expert placement a problem as soon as the model is larger 
    and CPU so that it runs on hardware that cannot hold it whole. The split is only as good as the choice of
    what goes where, and today that choice is made without knowing what the request will need.
 3. **Some experts do not need to be computed at all.** The prediction also says which experts a request can do
-   without. Here, half of them are never loaded for the request, and a router pick that lands on one of them is
-   skipped instead of computed. That saves memory and work, not only transfer time.
+   without. At the budget measured here, half of them are never loaded for the request, and a router pick that
+   lands on one of them is skipped instead of computed. That saves memory and work, not only transfer time.
 
 Prediction turns these into decisions that can be made per request, and renewed while it runs. If the experts
 a request is about to use are known ahead of time, an engine can put exactly those on the GPU, leave the rest
@@ -39,7 +40,7 @@ The results split the 175 problems in two:
 - **held out** (105 problems): the problem was kept out of the training data, on purpose. The predictor's output
   for these is a prediction about a prompt it has never seen.
 
-| problems solved (mean of 3 seeds) | all experts | predicted 49% of the experts |
+| problems solved (mean of 3 seeds) | all experts | predicted experts, budget 49% |
 |---|---|---|
 | **held out** (105 problems the predictor has never seen) | 69.3 (66.0%) | 68.3 (65.1%) |
 | trained (70 problems that were part of the training data) | 60.3 (86.2%) | 59.0 (84.3%) |
@@ -54,8 +55,9 @@ the numbers were produced.
 - **Read:** 16 activations on 8 token positions: the key and value projections of 10
   attention layers (what goes into the KV cache) and the hidden stream entering 6 layers.
 - **Predict:** Rankfield (R\*) is a two-tower retrieval network (dual encoder) with an aggregation head that
-  predicts a ranking of the model's experts for a request. A budget cuts the ranking into the request's
-  **keep-set**: 5,018 of the 10,240 (layer, expert) seats, 49%.
+  predicts a ranking of the model's experts for a request. A **budget** cuts the ranking into the request's
+  **keep-set**. The budget is a parameter (`--budget`, any value from 1 to 10,240 (layer, expert) seats); the
+  results here were measured at 5,018, which is 49% of the experts.
 - **Use:** decode runs on the keep-set. A router pick outside it is dropped, except that a fixed rule restores at
   most one dropped pick per token and layer.
 - **When:** first at the end of prefill. While the model thinks, the read is repeated every 1,056 tokens and
