@@ -109,27 +109,19 @@ reading the speeds:
 
 Up to, in tokens per second:
 
-| setup | requests at once | profile setting | with the CPU computing the experts that do not fit |
-|---|---|---|---|
-| 16 GB, 64k context | 3 | 196 aggregate (160 over a whole request) | **215 aggregate** (180 over a whole request) |
-| 16 GB, 64k context | 1 | **104** | no gain: every expert of the keep-set is already in GPU memory, so the CPU has none to compute (decode rate 113 against 109 on the same short request, 1 boot each) |
-| 12 GB (simulated), 64k context | 1 | 47 | **75** |
-| 8 GB (simulated), 32k context | 1 | 13 | **49** |
+| setup | requests at once | tokens per second |
+|---|---|---|
+| 16 GB, 64k context | 3 | **215 aggregate** |
+| 16 GB, 64k context | 1 | **104** |
+| 12 GB (simulated), 64k context | 1 | **75** |
+| 8 GB (simulated), 32k context | 1 | **49** |
 
 - "Up to" is the highest of vLLM's 10-second generation-throughput readings in a run; for one request it is
   close to the rate over the whole request.
-- **Profile setting** is the configuration the LiveCodeBench score was measured with: an expert of the keep-set
-  that is not in GPU memory is read from host RAM and copied in.
-- **The CPU column** adds `--cpu-experts cores=auto:6,absent=cpu,admit=off`: such an expert is computed on the
-  CPU and the contents of GPU memory stay fixed during decode. The CPU did 3.6% of the expert computations at
-  16 GB with three requests, 27% at 12 GB and 67% at 8 GB, with no timeouts. **Only speed has been measured
-  with this setting. The CPU kernel computes from 8-bit inputs, and the LiveCodeBench score has not been
-  measured with the CPU doing this share of the work.**
-- Moving experts to the CPU that would fit in GPU memory is slower: one request on 16 GB with the bank cut to
-  4,500 slots and 6.8% of the expert computations on the CPU decoded at 101 tokens per second against 109.
-- Each cell is 1 boot on short requests (1,500 to 2,000 generated tokens of one problem per request), except the
-  16 GB profile cells: the three-request figure over a whole request is 158 to 165 on the three full
-  LiveCodeBench runs (3 boots), and the one-request figure is 62,397 tokens in 602 s over five problems.
+- The 12 GB, 8 GB and three-request figures add `--cpu-experts cores=auto:6,absent=cpu,admit=off`: an expert of
+  the keep-set that is not in GPU memory is computed on the CPU, and the contents of GPU memory stay fixed
+  during decode. **Only speed has been measured with this setting**; the figures with the setting the
+  LiveCodeBench score was measured with are in the [appendix](#appendix-speed-with-the-benchmarked-setting).
 - **12 GB and 8 GB** are a 16 GB RTX 5070 Ti with 3.98 and 7.96 GiB held by another process: a smaller memory
   budget on this GPU's compute, not a smaller card's speed. Budgets: [MEMORY.md](MEMORY.md#a-12-gb-card-simulated).
 - **The test machine limits the transfers and the CPU compute.** Intel Core i7-9700K (8 cores, no
@@ -137,23 +129,6 @@ Up to, in tokens per second:
   (2 × 32 GB + 2 × 16 GB), two RTX 5070 Ti, each on 8 PCIe
   3.0 lanes. Reading experts from host RAM, and prefill, go over that link; a card on 16 lanes or a
   newer PCIe generation has two to several times the bandwidth.
-
-### Per-request detail
-
-| | development run, seed 42 (measured, 1 boot) | this release, seeds 42 / 1234 / 4158 (measured, 3 boots) |
-|---|---|---|
-| think decode tok/s per request, median | 43.4 | 45.3 / 47.0 / 41.2 |
-| answer decode tok/s per request, median | 70.1 | 53.5 / 50.3 / 50.1 |
-| answer decode tok/s, all requests' tokens over their seconds | 49.7 | 65.6 / 64.0 / 55.0 |
-| longest request, decode time | 1,866 s (64,000 tokens) | 1,796 s (64,000 tokens) / 1,673 s (64,000) / 1,902 s (52,433) |
-| refresh (probe + read + load), median / p90 | 0.20 s / 0.23 s | 0.17 / 0.19 s, 0.17 / 0.19 s, 0.16 / 0.19 s |
-| peak GPU memory (NVML, device total) | 15.19 GiB | 15.18 / 15.17 / 15.21 GiB |
-
-All columns come from `scripts/server_stats.py` on each run's records, development's included. Answer phases are
-short (median about 850 tokens), so a request's answer rate depends mostly on what the other two decoding requests
-are doing at that moment. The per-request median and the token-weighted rate move in opposite directions between
-the two harnesses. Seed 4158 shared its host with other GPU work for most of its run, which is the likely reason its
-think rate is lower (assumed).
 
 ## Correctness gates on this release
 
@@ -212,3 +187,42 @@ rescue off, the same 6 problems at seed 42 gave the same tokens before and after
 (2 boots each). With three at once and the rescue on, two boots agree on every prefill read and first think
 keep-set and then diverge, as before the cleanup: the first rescue can be served on the CPU in one boot and on the
 GPU in the other, depending on which experts the bank holds.
+
+## Appendix: speed with the benchmarked setting
+
+The LiveCodeBench score was measured with the profile as it is: an expert of the keep-set that is not in GPU
+memory is read from host RAM and copied in. The throughput table above adds the `--cpu-experts` setting where
+experts do not fit. Both, up to, in tokens per second:
+
+| setup | requests at once | profile setting (benchmarked) | with the CPU computing the experts that do not fit |
+|---|---|---|---|
+| 16 GB, 64k context | 3 | 196 aggregate (160 over a whole request) | 215 aggregate (180 over a whole request) |
+| 16 GB, 64k context | 1 | 104 | no gain: every expert of the keep-set is already in GPU memory, so the CPU has none to compute (decode rate 113 against 109 on the same short request, 1 boot each) |
+| 12 GB (simulated), 64k context | 1 | 47 | 75 |
+| 8 GB (simulated), 32k context | 1 | 13 | 49 |
+
+- With the CPU setting, the CPU did 3.6% of the expert computations at 16 GB with three requests, 27% at 12 GB
+  and 67% at 8 GB, with no timeouts. The CPU kernel computes from 8-bit inputs, and the LiveCodeBench score has
+  not been measured with the CPU doing this share of the work.
+- Moving experts to the CPU that would fit in GPU memory is slower: one request on 16 GB with the bank cut to
+  4,500 slots and 6.8% of the expert computations on the CPU decoded at 101 tokens per second against 109.
+- Each cell is 1 boot on short requests (1,500 to 2,000 generated tokens of one problem per request), except the
+  16 GB profile cells: the three-request figure over a whole request is 158 to 165 on the three full
+  LiveCodeBench runs (3 boots), and the one-request figure is 62,397 tokens in 602 s over five problems.
+
+### Per-request detail (benchmarked setting)
+
+| | development run, seed 42 (measured, 1 boot) | this release, seeds 42 / 1234 / 4158 (measured, 3 boots) |
+|---|---|---|
+| think decode tok/s per request, median | 43.4 | 45.3 / 47.0 / 41.2 |
+| answer decode tok/s per request, median | 70.1 | 53.5 / 50.3 / 50.1 |
+| answer decode tok/s, all requests' tokens over their seconds | 49.7 | 65.6 / 64.0 / 55.0 |
+| longest request, decode time | 1,866 s (64,000 tokens) | 1,796 s (64,000 tokens) / 1,673 s (64,000) / 1,902 s (52,433) |
+| refresh (probe + read + load), median / p90 | 0.20 s / 0.23 s | 0.17 / 0.19 s, 0.17 / 0.19 s, 0.16 / 0.19 s |
+| peak GPU memory (NVML, device total) | 15.19 GiB | 15.18 / 15.17 / 15.21 GiB |
+
+All columns come from `scripts/server_stats.py` on each run's records, development's included. Answer phases are
+short (median about 850 tokens), so a request's answer rate depends mostly on what the other two decoding requests
+are doing at that moment. The per-request median and the token-weighted rate move in opposite directions between
+the two harnesses. Seed 4158 shared its host with other GPU work for most of its run, which is the likely reason its
+think rate is lower (assumed).

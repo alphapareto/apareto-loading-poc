@@ -94,8 +94,10 @@ The `code` profile as it is: 5,256 slots, 64k context, three requests at once.
 python3 scripts/serve.py --profile code
 ```
 
-Up to 196 tokens per second aggregate with three requests (160 over a whole request), 104 with one
-(`-- --max-num-seqs 1`). Peak 15.2 GiB. This is the configuration the LiveCodeBench score was measured with.
+Up to 215 tokens per second aggregate with three requests when
+`-- --cpu-experts cores=auto:6,absent=cpu,admit=off` is added, and up to 104 with one request
+(`-- --max-num-seqs 1`). Peak 15.2 GiB. The LiveCodeBench score was measured with the profile as it is, which
+reaches up to 196.
 
 Faster, score not yet measured: add `--cpu-experts cores=auto:6,absent=cpu,admit=off`. Up to 215 aggregate
 (180 over a whole request).
@@ -107,7 +109,7 @@ python3 scripts/serve.py --profile code -- --max-num-seqs 1 --gpu-experts 2850 \
     --cpu-experts cores=auto:6,absent=cpu,admit=off
 ```
 
-Up to 75 tokens per second; 47 without the `--cpu-experts` option. Peak 11.2 GiB, measured with 2,880 slots and
+Up to 75 tokens per second. Peak 11.2 GiB, measured with 2,880 slots and
 `--gpu-margin-bytes 150000000`; 2,850 is what the fit check accepts at the default margin. The measurement was
 made on a 16 GB card with 3.98 GiB held by another process
 ([MEMORY.md](MEMORY.md#a-12-gb-card-simulated)), so a real 12 GB card may fit a few slots more or fewer. Three
@@ -131,9 +133,8 @@ python3 scripts/serve.py --profile code -- --max-num-seqs 1 --max-model-len 3373
 ```
 
 Up to 49 tokens per second, peak 7.24 GiB (measured on a 16 GB card with 7.96 GiB held by another process).
-Here the `--cpu-experts` option is what makes it usable: without it the same setup runs at up to 13 tokens per
-second, because about 110 experts are copied into GPU memory for every token. Four cores (`cores=auto:4`) gave
-46. Of the 175 LiveCodeBench problems, 60 stayed within a 32k context in all three published runs; the benchmark
+Here the `--cpu-experts` option is what makes it usable: without it about 110 experts are copied into GPU memory
+for every token. Of the 175 LiveCodeBench problems, 60 stayed within a 32k context in all three published runs; the benchmark
 as published needs 64k.
 
 ### The `--cpu-experts` setting

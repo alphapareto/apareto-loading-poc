@@ -98,7 +98,8 @@ read from host RAM or computed on the CPU, which is slower but works the same wa
 Measured on one boot each, on a desktop with an Intel Core i7-9700K (8 cores, no hyper-threading), Intel Z390
 chipset, 96 GB of DDR4-2666 memory (dual channel), RTX 5070 Ti on a PCIe 3.0 x8 link. The 12 GB, 8 GB and three-request figures use the CPU for
 the experts that do not fit in GPU memory, a setting whose speed is measured and whose benchmark score is not
-yet; [docs/RESULTS.md](docs/RESULTS.md#throughput) has both settings side by side.
+yet; the appendix of [docs/RESULTS.md](docs/RESULTS.md#appendix-speed-with-the-benchmarked-setting) has both settings
+side by side.
 
 **This is not an optimisation project.** Its purpose is to show that the experts a request needs can be
 predicted up front. The speeds above are without the model's multi-token prediction (MTP) and with the simplest
@@ -111,10 +112,11 @@ OpenAI-compatible server. [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md) has the f
 
 - Linux x86-64 and an NVIDIA **SM120** GPU (RTX 50-series), with a CUDA 13 driver and toolkit. The default
   profile is sized for 16 GB (developed on an RTX 5070 Ti); for a smaller card, lower `--gpu-experts` ([measured for a 12 GB budget](docs/MEMORY.md#a-12-gb-card-simulated)).
-- Host RAM: 25 GiB free per server, so a 32 GB machine for one server (the whole 17 GiB expert store is pinned;
-  measured peak 25.9 GiB, [docs/MEMORY.md](docs/MEMORY.md)), and at least 3 CPU cores per server.
-- About 85 GB of disk, NVMe preferred: 24 GB of checkpoint, 18 GB of expert store, room to build, and about 20 GB
-  of Python environments and caches. All of it goes under `~/.apareto` (`APARETO_HOME`); the repository itself
+- Host RAM: 26 GiB free per server, so a 32 GB machine for one server (the whole 17 GiB expert store is pinned;
+  measured peak 25.9 GiB with three requests and 21.6 GiB with one, [docs/MEMORY.md](docs/MEMORY.md)), and at
+  least 3 CPU cores per server.
+- About 90 GB of disk while installing and 67 GB afterwards, NVMe preferred: 24 GB of checkpoint, 18 GB of expert
+  store, 22 GB more while the store is built, and 25 GB of Python environments and caches. All of it goes under `~/.apareto` (`APARETO_HOME`); the repository itself
   holds only the code and the R\* bundles.
 
 ## Quick start
