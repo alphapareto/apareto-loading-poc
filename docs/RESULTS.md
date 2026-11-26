@@ -112,7 +112,7 @@ Up to, in tokens per second:
 | setup | requests at once | profile setting | with the CPU computing the experts that do not fit |
 |---|---|---|---|
 | 16 GB, 64k context | 3 | 196 aggregate (160 over a whole request) | **215 aggregate** (180 over a whole request) |
-| 16 GB, 64k context | 1 | **104** | **104**: no change, since every expert of the keep-set is already in GPU memory and the CPU has nothing to compute |
+| 16 GB, 64k context | 1 | **104** | no gain: every expert of the keep-set is already in GPU memory, so the CPU has none to compute (decode rate 113 against 109 on the same short request, 1 boot each) |
 | 12 GB (simulated), 64k context | 1 | 47 | **75** |
 | 8 GB (simulated), 32k context | 1 | 13 | **49** |
 
@@ -125,6 +125,8 @@ Up to, in tokens per second:
   16 GB with three requests, 27% at 12 GB and 67% at 8 GB, with no timeouts. **Only speed has been measured
   with this setting. The CPU kernel computes from 8-bit inputs, and the LiveCodeBench score has not been
   measured with the CPU doing this share of the work.**
+- Moving experts to the CPU that would fit in GPU memory is slower: one request on 16 GB with the bank cut to
+  4,500 slots and 6.8% of the expert computations on the CPU decoded at 101 tokens per second against 109.
 - Each cell is 1 boot on short requests (1,500 to 2,000 generated tokens of one problem per request), except the
   16 GB profile cells: the three-request figure over a whole request is 158 to 165 on the three full
   LiveCodeBench runs (3 boots), and the one-request figure is 62,397 tokens in 602 s over five problems.
