@@ -2,6 +2,7 @@
 ladder to thinking requests."""
 import json
 import threading
+import uuid
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
@@ -48,9 +49,12 @@ def _ladder_config(path, model_config):
         return _LADDER['spec'], _LADDER['config']
 
 
-def attach_ladder(body, path, vllm_config):
+def attach_ladder(body, path, vllm_config, header_id=None):
     """A chat request with thinking on (the template's default) gets the ladder in vllm_xargs, unless it already
-    carries one or its generation cap leaves less than the spec's answer reserve after the forced think-end."""
+    carries one or its generation cap leaves less than the spec's answer reserve after the forced think-end.
+
+    The ladder's log names the request. vLLM builds a chat request's id from the X-Request-Id header, else from the
+    body's `request_id`, else at random; a request with neither gets a `request_id` here, so the id is known now."""
     if body.get('messages') is None or 'ladder' in (body.get('vllm_xargs') or {}):
         return body
     if (body.get('chat_template_kwargs') or {}).get('enable_thinking', True) is False:
@@ -60,7 +64,10 @@ def attach_ladder(body, path, vllm_config):
     cap = body.get('max_completion_tokens') or body.get('max_tokens') or vllm_config.model_config.max_model_len
     if int(cap) - spec['final']['at_tok'] - spec['final_wait'] < spec['min_answer_reserve']:
         return body
-    body['vllm_xargs'] = {**(body.get('vllm_xargs') or {}), 'ladder': wire(config)}
+    if header_id is None and not body.get('request_id'):
+        body['request_id'] = f'{uuid.uuid4().int & (1 << 64) - 1:016x}'
+    session = f"chatcmpl-{header_id if header_id is not None else body['request_id']}"
+    body['vllm_xargs'] = {**(body.get('vllm_xargs') or {}), 'ladder': wire(config), 'session': session}
     return body
 
 
@@ -71,7 +78,8 @@ class BankControlMiddleware(BaseHTTPMiddleware):
                 config=request.app.state.vllm_config.additional_config['apareto']
                 body=request_controls(await request.json(),config)
                 if config.get('ladder'):
-                    body=attach_ladder(body,config['ladder'],request.app.state.vllm_config)
+                    body=attach_ladder(body,config['ladder'],request.app.state.vllm_config,
+                                       request.headers.get('X-Request-Id'))
                 request._body=json.dumps(body).encode()
             except (ValueError,TypeError) as error:
                 return JSONResponse({'error':{'message':str(error),'type':'invalid_request_error'}},status_code=400)

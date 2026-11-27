@@ -9,9 +9,13 @@ output list whose last entry is a -1 placeholder; the real id is written in just
 processor is loaded). Observing in apply() reads the same tokens in the same order with or without async, and
 decides the forced token for the row being sampled.
 
-Per-request config rides SamplingParams.extra_args["ladder"] as a JSON string (scripts/run_eval.py builds it from
-the eval set's protocol); a request without it is untouched. Events (build, arm, inject, fence, force_miss) go to
-<selection dir>/ladder.jsonl, one line each, flushed.
+Per-request config rides SamplingParams.extra_args["ladder"] as a JSON string, and the request's name in
+extra_args["session"] (the middleware attaches both); a request without a ladder is untouched. Events (build, arm,
+inject, fence, force_miss) go to <selection dir>/ladder.jsonl, one line each with the request's name, flushed.
+
+A refresh probe drops the other requests from vLLM's persistent batch, and a request that is added again comes
+with a new output list. Its controller is then built again and reads the whole output so far, which brings it to
+the same state and produces the same events; the events already written for that request are not written again.
 """
 import json
 from pathlib import Path
@@ -50,6 +54,7 @@ class LadderLogitsProcessor(LogitsProcessor):
 
     def __init__(self, vllm_config, device, is_pin_memory):
         self.ctrl = {}       # key -> [controller, out_list, seen, idle_updates, session, events_written]
+        self.written = {}    # session -> events written for it, over all controllers built for the request
         self.slots = {}      # batch index -> key
         self.no_ladder = {}  # key -> out_list, requests without a ladder config
         # The worker creates the selection directory after the processors are built, so the log opens on first use.
@@ -62,13 +67,19 @@ class LadderLogitsProcessor(LogitsProcessor):
 
     def _write(self, st):
         ctrl = st[0]
-        if self.log_path is not None and st[5] < len(ctrl.events):
+        if st[5] >= len(ctrl.events):
+            return               # nothing new (a rebuilt controller that has not read its output again yet)
+        if self.log_path is not None:
             if self.log is None:
                 self.log = self.log_path.open('x')
             for event in ctrl.events[st[5]:]:
-                self.log.write(json.dumps({'session': st[4], **event}) + '\n')
+                self.log.write(json.dumps({'request': st[4], **event}) + '\n')
             self.log.flush()
         st[5] = len(ctrl.events)
+        if st[4] != '?':
+            self.written[st[4]] = st[5]
+            if len(self.written) > 8192:
+                self.written.pop(next(iter(self.written)))
 
     def update_state(self, batch_update):
         if batch_update:
@@ -89,7 +100,8 @@ class LadderLogitsProcessor(LogitsProcessor):
                         self.slots.pop(index, None)
                         continue
                     ctrl, session = built
-                    self.ctrl[key] = st = [ctrl, out, 0, 0, session, 0]
+                    # The build event is every controller's first event, so a rebuilt one skips it with the rest.
+                    self.ctrl[key] = st = [ctrl, out, 0, 0, session, self.written.get(session, 0)]
                     ctrl.events.append({'event': 'build', 'at_tok': ctrl.t, 'final_at': ctrl.cfg['final']['at_tok']})
                     self._write(st)
                 self.slots[index] = key
