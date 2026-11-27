@@ -199,6 +199,11 @@ In `bank_model.py`, `BankRunner._apply_quant_method` runs once per layer and ste
 
 The think-phase rescue scores a dropped pick against `static_cut` from section 6 (`_set_rescue_gain`).
 
+One more component acts on a thinking request, and it is not part of selection: nudging writes
+text into long reasoning, and `</think>` itself at 60,000 tokens. It works on the emitted tokens only and never reads or
+changes a keep-set; the answer keep-set is selected at `</think>` whether the model or a nudge wrote it
+([HOW-IT-WORKS.md §5](HOW-IT-WORKS.md#5-nudging)).
+
 ## 8. Looking at a run
 
 Every selection is written to `<tag>_selection/selections.jsonl`, one JSON row each:

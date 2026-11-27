@@ -4,9 +4,11 @@
     python3 scripts/server_stats.py ~/.apareto/results/<tag>   (the prefix of <tag>_server.log etc., under $APARETO_HOME/results)
 
 Reads:
-  <tag>_selection/selections.jsonl  per request: selection latency, midrun refreshes, think->answer swap, decode phases
+  <tag>_selection/selections.jsonl  per request: selection latency, midrun refreshes, think->answer swap, decode phases;
+                                    per decode epoch: the rescue counters
   <tag>_selection/startup_memory.json  (or the server log's startup line): bank, KV, VRAM budget
   <tag>_memory.jsonl                 GPU memory sampled during the run
+  <tag>_server.log                   the scheduler's and the worker's pause and resume lines
 Prints one JSON object. Decode rates are token-weighted over all requests (tokens / seconds per phase).
 """
 import json
@@ -56,6 +58,43 @@ def summarize(prefix):
     swaps = [r['swap_seconds'] for r in rows
              if r.get('kind') != 'midrun_swap' and isinstance(r.get('swap_seconds'), (int, float))]
     refreshes = [r['seconds'] for r in rows if r.get('kind') == 'midrun_swap' and isinstance(r.get('seconds'), (int, float))]
+    rescue = None
+    for row in rows:
+        counters = row.get('cpu_experts') if row.get('kind') == 'paged_decode_epoch' else None
+        if counters:
+            rescue = rescue or {'picks_gpu_computed': 0, 'rescued': 0, 'rescued_gpu': 0, 'cpu_pairs': 0, 'cpu_timeouts': 0}
+            rescue['picks_gpu_computed'] += row.get('routed_terms', 0)
+            for name, key in (('rescued', 'rescued'), ('rescued_gpu', 'rescued_gpu'), ('cpu_pairs', 'pairs'),
+                              ('cpu_timeouts', 'timeouts')):
+                rescue[name] += counters.get(key, 0)
+    if rescue:
+        # The router picks 8 experts per token and layer (40 layers). Kept = computed on the GPU and not a rescue.
+        picks = 8 * 40 * sum(total['tokens'] for total in phases.values())
+        kept = rescue['picks_gpu_computed'] - rescue['rescued_gpu']
+        if picks:
+            rescue['share_of_picks'] = {'outside_keep_set': 1 - kept / picks, 'rescued': rescue['rescued'] / picks,
+                                        'dropped': 1 - (kept + rescue['rescued']) / picks}
+    pauses = None
+    log = Path(f'{prefix}_server.log')
+    if log.exists():
+        last = moved = None
+        paused, most = set(), 0
+        for line in log.open(errors='replace'):
+            match = re.search(r'APARETO (pause|pause-resumed) (\{.*\})', line)
+            if not match:
+                continue
+            record = json.loads(match.group(2))
+            if match.group(1) == 'pause':
+                last, most = record, max(most, len(record['paused']))
+                paused.update(op[1] for op in record['ops'] if op[0] == 'pause')
+            else:
+                moved = record
+        if last:
+            pauses = {'pauses': last['pauses'], 'resumes': last['resumes'], 'requests_paused': len(paused),
+                      'most_paused_at_once': most,
+                      'held_tokens_mean': last['paused_tokens'] / last['pauses'] if last['pauses'] else None,
+                      'resume_wait_steps': last['resume_waits'],
+                      'offload_gib': round(moved['offload_bytes'] / 2**30, 3) if moved else None}
     per_request = {}
     for row in rows:
         for name, phase in (row.get('phases') or {}).items() if row.get('kind') == 'decode_phases' else ():
@@ -73,6 +112,8 @@ def summarize(prefix):
     host = (json.loads(results.read_text()).get('host_memory') or {}) if results.exists() else {}
     gib = lambda b: round(b / 2**30, 3) if isinstance(b, (int, float)) else None
     return {'decode': phases,
+            'rescue': rescue,
+            'pauses': pauses,
             'selection_seconds': quantiles(selection),
             'decode_tokens_per_second_per_request': {name: quantiles(v) for name, v in per_request.items()},
             'think_to_answer_swap_seconds': quantiles(swaps),

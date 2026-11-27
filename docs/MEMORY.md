@@ -6,7 +6,7 @@ What one server uses with the `code` profile: GPU memory, host RAM, and disk. Ev
 | | in use | you need |
 |---|---|---|
 | GPU memory | 15.2 GiB peak | at the default profile, a 16 GB card with nothing else on it; less with a smaller expert bank |
-| host RAM | 25.9 GiB peak with three requests, 21.6 GiB with one | 26 GiB free for three requests (the launcher checks for 25); a 32 GB machine for one server |
+| host RAM | 26.6 GiB peak with three requests, 21.6 GiB with one | 27 GiB free for three requests (the launcher checks for 25); a 32 GB machine for one server |
 | disk | 43 GB (checkpoint, expert store, bundles) | about 90 GB while installing, 67 GB afterwards, including the environments |
 
 ## GPU memory
@@ -70,23 +70,24 @@ slots (1.77 MB each). Three requests at once on 12 GB have not been measured.
 ## Host RAM
 
 Peak of the server's whole process group, from boot to shutdown, read from the server's memory cgroup:
-**25.6 to 25.9 GiB** at the profile's three requests (measured, 3 boots: 25.9 with three requests decoding at
-once and 80 pauses and resumes, 25.7 and 25.6 on short requests), and **21.6 GiB** with `--max-num-seqs 1`
+**25.6 to 26.6 GiB** at the profile's three requests (measured, 5 boots: 26.3 and 26.6 on the two servers of a
+full LiveCodeBench run, 25.9 with three requests decoding at once and 80 pauses and resumes, 25.7 and 25.6 on
+short requests), and **21.6 GiB** with `--max-num-seqs 1`
 (measured, 1 boot). The large items are allocated at boot, so load adds little.
 
 | item | three requests (profile) | one request (`--max-num-seqs 1`) | label |
 |---|---|---|---|
 | pinned copy of every expert (prefill streams from it, decode reads experts outside the bank from it, the rescue computes from it) | 16.91 GiB | 16.91 GiB | measured (size of the expert store) |
-| pinned arena for paused requests' KV | 2.74 GiB, room for two requests | none | computed: (n − 1) × 1.05 × the KV cache |
+| pinned arena for paused requests' KV | 2.74 GiB, room for two requests (of three, at most two are paused at once, [HOW-IT-WORKS.md](HOW-IT-WORKS.md#pause-and-resume)) | none | computed: (n − 1) × 1.05 × the KV cache |
 | the three R\* networks | 0.83 GiB | 0.83 GiB | measured in a separate process, see below |
-| Python, vLLM's two processes, PyTorch and CUDA on the host side, the tokenizer | 5.1 to 5.4 GiB | 3.9 GiB | by subtraction |
-| **peak** | **25.6 to 25.9 GiB** | **21.6 GiB** | measured, 3 boots and 1 boot |
+| Python, vLLM's two processes, PyTorch and CUDA on the host side, the tokenizer | 5.1 to 6.1 GiB | 3.9 GiB | by subtraction |
+| **peak** | **25.6 to 26.6 GiB** | **21.6 GiB** | measured, 5 boots and 1 boot |
 
-The last item is what is left after the others, and it is 1.2 to 1.5 GiB larger with three requests than with
-one. What that difference consists of has not been measured.
+The last item is what is left after the others, and it is 1.2 to 2.2 GiB larger with three requests than with
+one, and largest on the full benchmark run. What that difference consists of has not been measured.
 
 The launcher refuses to start unless 25 GiB are available (a 17 GiB allowance for the pinned expert copy plus an
-8 GiB reserve). That check is 0.9 GiB below the measured peak with three requests, so have 26 GiB free. It runs
+8 GiB reserve). That check is 1.6 GiB below the highest measured peak with three requests, so have 27 GiB free. It runs
 the server in its own systemd scope with a memory limit of what is available minus 3 GiB and no swap, so a server
 that runs out of memory is stopped alone and does not take the desktop session with it.
 

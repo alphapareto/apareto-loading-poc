@@ -65,7 +65,8 @@ the numbers were produced.
   smaller budget needs less memory and compute; a larger one stays closer to the full model. The results on
   this page use 5,018 (49%) as the example; it is a setting, not a property of the method.
 - **Use:** decode runs on the keep-set. A router pick outside it is dropped, except that a fixed rule restores at
-  most one dropped pick per token and layer.
+  most one dropped pick per token and layer. In the published runs about 16.5% of the router's picks fall outside the
+  keep-set; about 2% are restored and the rest, about 14.5%, are never computed.
 - **When:** first at the end of prefill. While the model thinks, the read is repeated every 1,056 tokens and
   the keep-set updated. At `</think>` a third network predicts the keep-set for the answer.
 
@@ -80,7 +81,8 @@ layer) on a GPU smaller than the model, without changing the model's weights. Th
 
 1. **Prefill runs dense.** Experts that are not in VRAM are streamed in from pinned host RAM, layer by layer.
 2. **The prediction is made**, and the experts it names are loaded. Each renewal loads only what it adds.
-3. **Decode runs on the predicted experts**, three requests at a time.
+3. **Decode runs on the predicted experts**, three requests at a time. When their contexts outgrow the shared KV
+   cache, one request is paused: its state moves to host RAM and comes back byte for byte, without recomputation.
 
 **16 GB is the measured setup, not a limit.** How many experts sit in GPU memory is a parameter
 (`--gpu-experts`). On a smaller card the GPU holds fewer of them, and more of the experts a request uses are
@@ -112,8 +114,8 @@ OpenAI-compatible server. [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md) has the f
 
 - Linux x86-64 and an NVIDIA **SM120** GPU (RTX 50-series), with a CUDA 13 driver and toolkit. The default
   profile is sized for 16 GB (developed on an RTX 5070 Ti); for a smaller card use `--profile code-12gb` or `--profile code-8gb` ([measured for a 12 GB budget](docs/MEMORY.md#a-12-gb-card-simulated)).
-- Host RAM: 26 GiB free per server, so a 32 GB machine for one server (the whole 17 GiB expert store is pinned;
-  measured peak 25.9 GiB with three requests and 21.6 GiB with one, [docs/MEMORY.md](docs/MEMORY.md)), and at
+- Host RAM: 27 GiB free per server, so a 32 GB machine for one server (the whole 17 GiB expert store is pinned;
+  measured peak 26.6 GiB with three requests and 21.6 GiB with one, [docs/MEMORY.md](docs/MEMORY.md)), and at
   least 3 CPU cores per server.
 - About 90 GB of disk while installing and 67 GB afterwards, NVMe preferred: 24 GB of checkpoint, 18 GB of expert
   store, 22 GB more while the store is built, and 25 GB of Python environments and caches. All of it goes under `~/.apareto` (`APARETO_HOME`); the repository itself
@@ -139,8 +141,8 @@ Details in [docs/RUNNING.md](docs/RUNNING.md#livecodebench-v6).
 ## Serving profile and parameters
 
 The `code` profile ([config/profiles.json](config/profiles.json)) sets a 65,737-token context, a 5,018-seat
-keep-set, 5,256 expert slots on the GPU, three requests decoding at once, the rescue rule and the think-end
-ladder. Every one of these is a startup parameter: `python3 scripts/serve.py --profile code -- --budget 4608`
+keep-set, 5,256 expert slots on the GPU, three requests decoding at once, the rescue rule and nudging
+(text written into long reasoning to make the model finish it; at 60,000 tokens the hard nudge writes `</think>`). Every one of these is a startup parameter: `python3 scripts/serve.py --profile code -- --budget 4608`
 serves a smaller keep-set, `--budget 10240` the unmasked model ([docs/RUNNING.md](docs/RUNNING.md#parameters)).
 
 The same file has three variants of it that change only memory sizes and where experts outside GPU memory are
@@ -155,7 +157,7 @@ Quality, speed and memory are reported in [docs/RESULTS.md](docs/RESULTS.md). Ea
 ## Documentation
 
 - [docs/INSTALL.md](docs/INSTALL.md): installation step by step, paths, R\* bundles, troubleshooting
-- [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md): phases, selection and refresh, the rescue rule, the ladder, memory tiers, the vLLM plugin
+- [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md): phases, selection and refresh, the rescue rule, nudging, memory tiers, the vLLM plugin
 - [docs/SELECTION.md](docs/SELECTION.md): how the keep-sets are computed, step by step, with the file and function for each step
 - [docs/MEMORY.md](docs/MEMORY.md): GPU memory, host RAM and disk, item by item
 - [docs/RUNNING.md](docs/RUNNING.md): the server and its parameters, the benchmark runner, and the outputs

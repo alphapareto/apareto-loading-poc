@@ -43,7 +43,7 @@ the published LiveCodeBench numbers were measured with; other settings are your 
 | `--midrun-at-prefill` | on | the first think keep-set is the blend too; `--no-midrun-at-prefill`: the static cut alone |
 | `--cpu-rescue` | `x=0.00014,ax=0.12,gout=0.001,cap=1,phases=think+answer` | the rescue rule ([HOW-IT-WORKS.md §4](HOW-IT-WORKS.md#4-the-rescue-rule)); `off` drops every pick outside the keep-set |
 | `--cpu-experts` | `cores=auto:2,absent=gpu` | the rescue's CPU path: the last 2 cores of the server's affinity, reserved for it |
-| `--ladder` | `config/ladder.json` | the think-end ladder ([HOW-IT-WORKS.md §5](HOW-IT-WORKS.md#5-the-think-end-ladder)); `off` turns it off |
+| `--ladder` | `config/ladder.json` | nudging, and the ladder that schedules it ([HOW-IT-WORKS.md §5](HOW-IT-WORKS.md#5-nudging)); `off` turns it off |
 | `--think-bundle`, `--midrun-bundle`, `--answer-bundle` | `artifacts/code/…` | the R\* bundles |
 | `--routing-log` | off | verification only: logs every decode step's router picks for `tests/check_rescue_log.py` |
 | `--async-scheduling` | on | vLLM's asynchronous scheduling. Set by the profile (`"async_scheduling": true`); there is no command-line switch to turn it off |
@@ -69,11 +69,54 @@ Every run writes to `$APARETO_HOME/results/<tag>_*` (default `~/.apareto/results
 | `<tag>_server.log` | the vLLM log |
 | `<tag>_memory.jsonl` | NVML GPU memory samples, every 0.1 s |
 | `<tag>_selection/selections.jsonl` | one row per selection, refresh and swap, and per request its decode tokens and time per phase |
-| `<tag>_selection/ladder.jsonl` | every ladder event |
+| `<tag>_selection/ladder.jsonl` | every nudging event, with its request ([below](#the-nudging-record)) |
 | `<tag>_ready.json`, `<tag>_results.json` | boot report (memory breakdown, KV capacity); final report |
 
 `python3 scripts/server_stats.py ~/.apareto/results/<tag>` summarizes them. It reports decode tok/s per phase, selection
 and swap latency, and peak and startup memory.
+
+#### The rescue's counters
+
+The `paged_decode_epoch` rows of `selections.jsonl` (one per stretch of decode between two changes of the
+keep-sets) carry the counters; `scripts/server_stats.py` adds them up under `rescue`.
+
+| field | meaning |
+|---|---|
+| `routed_terms` | picks the GPU computed: the kept ones and the rescues it computed itself |
+| `cpu_experts.rescued` | rescued picks, wherever computed |
+| `cpu_experts.rescued_gpu` | of those, computed on the GPU because the bank held the expert |
+| `cpu_experts.pairs` | (token, expert) pairs handed to the CPU |
+| `cpu_experts.timeouts`, `fallback_pairs` | layers, and pairs, the GPU computed itself because the CPU did not answer within `timeout_us + per_pair_us` per pair |
+| `cpu_experts.wait_ns`, `compute_ns` | time the GPU waited for the CPU, and time the CPU computed |
+
+#### Pause and resume in the log
+
+Pauses are written to `<tag>_server.log`, and `scripts/server_stats.py` reports their totals under `pauses`.
+
+| line | fields |
+|---|---|
+| `APARETO pause {…}` | written by the scheduler whenever it pauses or resumes: `ops` (each `pause` or `resume` with the request and the tokens it holds), `paused` (the requests paused now), and running totals `pauses`, `resumes`, `paused_tokens`, `resume_waits` (scheduling steps in which a paused request could not yet be resumed) |
+| `APARETO pause-resumed {…}` | written by the worker when a request's state is back on the GPU: `request_id`, `held` (tokens), and running totals `offloads`, `onloads`, `drops`, `offload_bytes`, `onload_bytes`; `verified_onloads` counts the bit-for-bit read-backs of a verification run |
+
+The `paused_seconds` of a request's decode phases in `selections.jsonl` is something else: the time its own
+refreshes and its answer swap took, which is left out of its decode time.
+
+#### The nudging record
+
+One line per event in `<tag>_selection/ladder.jsonl`. `request` is the request's id without the suffix vLLM adds
+to it, so it is the beginning of the `request_id` in `selections.jsonl`; `at_tok` counts the request's generated
+tokens.
+
+| event | meaning |
+|---|---|
+| `build` | nudging was set up for the request (once per request) |
+| `fence` | a code block opened (`state` 1) or closed (0) in the reasoning |
+| `arm` | a step of the ladder applies: `kind` is `fixed` (the 40,000 and 45,000 rows), `ramp` or `final`; `nstar` is the repetition length, `bar` the threshold it reached |
+| `inject` | the text was written: `kind` is `nudge` (soft) or `final` (the hard nudge), `waited` the tokens since `arm`, `forced_nl` and `forced_fence_close` whether a line had to be started or close a code block first |
+| `force_miss` | an inserted token did not come out as forced (not expected) |
+
+The number of requests the hard nudge ended is the number of `inject` lines with `kind` `final`
+([HOW-IT-WORKS.md §5](HOW-IT-WORKS.md#5-nudging)).
 
 ### Verification runs
 
@@ -225,7 +268,8 @@ rendered `litellm_config.yaml`, lighteval's `results_*.json` and per-sample deta
 `run_multi.sh` runs one seed on several GPUs at once: one server per GPU, and `runners/lcb/balance.py` in front
 of them, which sends each request to the server with the fewest requests in flight and changes nothing in it.
 lighteval runs once, with as many concurrent requests as the servers decode together. The published numbers were
-measured with `run.sh`, one server per seed.
+measured with `run.sh`, one server per seed; one seed-42 run with `run_multi.sh` on two GPUs gave the same total in
+half the time ([RESULTS.md](RESULTS.md#livecodebench-v6)).
 
 These settings differ from Red Hat's run:
 
@@ -233,9 +277,9 @@ These settings differ from Red Hat's run:
 |---|---|---|---|
 | `concurrent_requests` | 64 | the server's `max_num_seqs` (3) | requests beyond what the server decodes at once would queue into the 2,400 s timeout |
 | `--max-model-len` | 96,000 | 65,737 | the longest LiveCodeBench v6 prompt (1,737 tokens) plus the 64,000 generated: every request gets the full 64,000 |
-| think-end ladder | none | `config/ladder.json` | part of the masked configuration; at most a nudge or two and a forced `</think>` at 60,000 tokens ([HOW-IT-WORKS.md §5](HOW-IT-WORKS.md#5-the-think-end-ladder)) |
+| nudging | none | `config/ladder.json` | part of the masked configuration: at most two soft nudges per request when the reasoning repeats itself, and a hard nudge that writes `</think>` at 60,000 tokens, which 39 to 51 of the 175 requests reached in the published runs ([HOW-IT-WORKS.md §5](HOW-IT-WORKS.md#5-nudging)) |
 
-The prompts, sampling, scoring and problem set are lighteval's. `-- --ladder off` runs without the ladder.
+The prompts, sampling, scoring and problem set are lighteval's. `-- --ladder off` runs without nudging.
 
 One seed takes 14 to 16 hours on one GPU (measured, three seeds, two servers sharing one 8-core host). Many of
 the 175 problems think for tens of thousands of tokens at about 45 tok/s per request, three at a time.

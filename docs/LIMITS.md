@@ -29,7 +29,7 @@
 - **Single-turn requests.** Each request is prefilled from its first token; a conversation's earlier turns are
   not reused.
 - **Host RAM.** The rescue needs the whole expert store pinned in host RAM (17 GiB) plus room for paused
-  requests' KV. The server needs 25 GiB free at boot and peaks at 25.9 GiB ([MEMORY.md](MEMORY.md)).
+  requests' KV. The launcher checks for 25 GiB free at boot; the server peaks at up to 26.6 GiB, so have 27 GiB free ([MEMORY.md](MEMORY.md)).
 - **Long prompts cost more to prefill.** Each prefill chunk streams the experts missing from the bank over PCIe.
 
 ## Quality
@@ -37,8 +37,9 @@
 - **Decode is restricted to the keep-set, plus the rescue.** Router picks outside the keep-set are dropped,
   except the at most one per token and layer the rescue rule restores. That is the trade the method makes, and
   it is why the results compare against the dense model under the same harness ([RESULTS.md](RESULTS.md)).
-- **The ladder is part of the measured configuration.** The quality claim is for masked decode with the
-  think-end ladder; without the ladder it is not measured here.
+- **Nudging is part of the measured configuration.** The quality claim is for masked decode with nudging
+  ([HOW-IT-WORKS.md §5](HOW-IT-WORKS.md#5-nudging)); without it, it is not measured here. A hard nudge ends the reasoning but
+  not always the rambling: in about half of those requests the answer runs into the token cap.
 - **R\* bundles are fixed data.** They are not adapted per deployment, and this repository has no tooling to
   produce them.
 - **Part of the benchmark is training data.** 70 of LiveCodeBench v6's 175 problems were part of R\*'s training

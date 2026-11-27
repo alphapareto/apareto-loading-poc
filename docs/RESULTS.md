@@ -6,10 +6,10 @@ Every figure is labeled **measured** (with its number of boots), **predicted** (
 This release is a proof of concept for one claim, at the `code` profile's defaults:
 
 > **From a request's prefill it is possible to predict which experts will contribute to solving it.** Decoding on
-> the predicted 49% of the experts, with the think-end ladder, scores within seed-to-seed spread of the dense
+> the predicted 49% of the experts, with nudging, scores within seed-to-seed spread of the dense
 > model on LiveCodeBench v6, both on problems the predictor was trained on and on held-out problems.
 
-The masked side runs with the ladder ([HOW-IT-WORKS.md §5](HOW-IT-WORKS.md#5-the-think-end-ladder)); the dense
+The masked side runs with nudging ([HOW-IT-WORKS.md §5](HOW-IT-WORKS.md#5-nudging)); the dense
 side is the unmasked model without it. The claim holds at the profile's defaults only; any other setting is your
 own measurement.
 
@@ -30,7 +30,7 @@ own measurement.
 | think keep-set | `cut(0.5 · static + 0.5 · midrun)`, refreshed every 1,056 thinking tokens |
 | answer keep-set | post-think read |
 | rescue | at most 1 dropped pick per token and layer, by the static-cut rule |
-| think-end ladder | on |
+| nudging (`--ladder`) | on |
 | requests decoding at once | 3 |
 | GPU expert slots | 5,256 (8.66 GiB) |
 | KV cache | 1.40 GB, 65,737-token context |
@@ -42,10 +42,16 @@ Problems solved, of 175:
 
 | | seed 42 | seed 1234 | seed 4158 | mean |
 |---|---|---|---|---|
-| **dense**, no ladder, development harness (measured, 1 boot per seed) | 133 | 131 | 125 | 129.7 (74.1%) |
-| **masked + ladder**, development runs (measured, 1 boot per seed) | 133 | 133 | 125 | 130.3 (74.5%) |
-| **masked + ladder**, this release with lighteval (measured, 1 boot per seed) | 129 | 129 | 124 | 127.3 (72.8%) |
+| **dense**, no nudging, development harness (measured, 1 boot per seed) | 133 | 131 | 125 | 129.7 (74.1%) |
+| **masked + nudging**, development runs (measured, 1 boot per seed) | 133 | 133 | 125 | 130.3 (74.5%) |
+| **masked + nudging**, this release with lighteval (measured, 1 boot per seed) | 129 | 129 | 124 | 127.3 (72.8%) |
 | Red Hat's published score (stock vLLM, whole model resident) | — | — | — | 74.67% |
+
+A fourth run repeated seed 42 from a clean clone of this repository, installed with `setup/install.sh`, with the
+175 requests spread over two servers on two GPUs (`runners/lcb/run_multi.sh 42 "0 1"`, measured, 1 boot per
+server): 129 of 175, 61 of the 70 trained and 68 of the 105 held-out problems. It took 7.1 hours against 14.4 for
+the single-server seed-42 run. GPU peak 15.21 GiB on both servers, host RAM peak 26.3 and 26.6 GiB. It is not part
+of the means on this page.
 
 ### Trained and held-out problems
 
@@ -62,17 +68,80 @@ same runs, split:
 |---|---|---|---|---|
 | **trained (70 problems)** | | | | |
 | dense | 62 | 62 | 57 | 60.3 (86.2%) |
-| masked + ladder, development | 60 | 63 | 54 | 59.0 (84.3%) |
-| masked + ladder, this release | 59 | 60 | 58 | 59.0 (84.3%) |
+| masked + nudging, development | 60 | 63 | 54 | 59.0 (84.3%) |
+| masked + nudging, this release | 59 | 60 | 58 | 59.0 (84.3%) |
 | **held out (105 problems)** | | | | |
 | dense | 71 | 69 | 68 | 69.3 (66.0%) |
-| masked + ladder, development | 73 | 70 | 71 | 71.3 (67.9%) |
-| masked + ladder, this release | 70 | 69 | 66 | 68.3 (65.1%) |
+| masked + nudging, development | 73 | 70 | 71 | 71.3 (67.9%) |
+| masked + nudging, this release | 70 | 69 | 66 | 68.3 (65.1%) |
 
 The two groups differ in difficulty (the held-out group has 54 hard problems of 105, the trained group 26 of 70),
 so compare masked with dense inside a group, not one group with the other. On the held-out problems masked decode
 is 1.0 problem below dense in the release and 2.0 above it in development; on the trained problems it is 1.3
 below in both.
+
+### What the rescue did
+
+The rescue rule ([HOW-IT-WORKS.md §4](HOW-IT-WORKS.md#4-the-rescue-rule)) in the release runs, from the `cpu_experts`
+counters in each run's `selections.jsonl` (measured, 1 boot per seed; the clean-clone run had 2 servers). A pick
+is one of the router's 8 experts for one token at one layer.
+
+| | seed 42 | seed 1234 | seed 4158 | seed 42, clean clone on two GPUs |
+|---|---|---|---|---|
+| generated tokens | 6.71 million | 6.50 million | 6.72 million | 6.64 million |
+| picks outside the keep-set | 16.5% | 16.7% | 16.4% | 16.5% |
+| picks rescued | 1.95% (41.9 million) | 1.97% (40.9 million) | 1.93% (41.4 million) | 1.95% (41.5 million) |
+| picks dropped | 14.6% | 14.7% | 14.5% | 14.6% |
+| token-and-layer positions with a rescue | 15.6% | 15.8% | 15.4% | 15.6% |
+| rescues computed on the GPU / on the CPU | 27% / 73% | 27% / 73% | 27% / 73% | 27% / 73% |
+| CPU rescues the GPU took over after the time limit | 5,213 | 2,650 | 294,557 | 1,425 |
+
+The first three percentage rows are computed from the counters: the picks the GPU computed (`routed_terms`,
+which includes the rescues it computed itself) and the rescues. The shares are of pick counts, not of routing
+weight. Seed 4158 shared its host with other work, which is the likely reason for its takeovers (assumed).
+
+### What pausing did
+
+Pause and resume ([HOW-IT-WORKS.md §6](HOW-IT-WORKS.md#pause-and-resume)) in the release runs, from each run's
+server log (measured, 1 boot per seed; the clean-clone run had 2 servers, added together):
+
+| | seed 42 | seed 1234 | seed 4158 | seed 42, clean clone on two GPUs |
+|---|---|---|---|---|
+| pauses / resumes | 197 / 197 | 186 / 186 | 194 / 194 | 190 / 190 |
+| requests paused at least once, of 175 | 128 | 123 | 129 | 126 |
+| most requests paused at once, per server | 2 | 2 | 2 | 2 |
+| tokens a paused request holds, mean | 16,220 | 16,476 | 16,421 | 16,604 |
+| KV copied to host RAM over the run | 68 GiB | 65 GiB | 67 GiB | 67 GiB |
+| scheduling steps a paused request waits, mean | 10,580 | 10,520 | 10,816 | 10,691 |
+| waiting request-steps per decode step | 0.60 | 0.59 | 0.60 | 0.60 |
+| requests decoding per step, mean | 1.94 | 1.97 | 1.93 | 1.95 |
+
+The last three rows are computed. The first two use the scheduler's `resume_waits` counter, which counts every
+scheduling step in which a paused request could not yet be resumed (a step with two requests waiting counts
+twice); the third is the generated tokens divided by the decode steps. The time a request spends paused is not
+recorded directly; at the runs' 61 to 67 decode steps per second the mean wait is between two and a half and three minutes.
+
+### What the nudging did
+
+Nudging ([HOW-IT-WORKS.md §5](HOW-IT-WORKS.md#5-nudging)) in the release runs, from
+each run's `selections.jsonl` and `ladder.jsonl` (measured, 1 boot per seed; the clean-clone run had 2 servers):
+
+| of 175 requests | seed 42 | seed 1234 | seed 4158 | seed 42, clean clone on two GPUs |
+|---|---|---|---|---|
+| reasoning reached 40,000 tokens (from there repetition is nudged) | 84 | 73 | 84 | 82 |
+| reasoning ended by the hard nudge at 60,000 tokens | 43 | 39 | 51 | 50 |
+| soft nudges written, all requests together | 24 | 21 | 29 | 23 |
+| median reasoning length, tokens | 38,537 | 35,710 | 37,214 | 38,142 |
+| median answer length after a hard nudge, tokens | 3,053 | 3,972 | 2,793 | 2,583 |
+| median answer length, the other requests, tokens | 685 | 685 | 635 | 658 |
+| after a hard nudge, answer cut off at the 64,000-token cap | 20 | 21 | 25 | 22 |
+| other requests cut off at the cap | 1 | 0 | 0 | 0 |
+
+The soft-nudge counts are distinct insertions: in these runs' records a request's events could be written more than
+once, and repeated lines are counted once. After a hard nudge the model often keeps going in the answer, inside code comments. In the
+clean-clone run, the 41 answers longer than 6,000 characters consist of 62% comment lines (35% in the other 134),
+22 of them end without a closed code block, and 14 were solved (115 of the other 134). The other runs' answers
+have not been broken down this way, and the masked configuration without nudging has not been run.
 
 ### How to read the differences
 

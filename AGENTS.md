@@ -23,9 +23,9 @@ LiveCodeBench v6.
 
 ```
 apareto_loader/            core library: config, store and layer store, bank, selector adapter, taps, think mode
-apareto_loader/vllm027/    the vLLM 0.27 plugin: loader, model, worker, scheduler, middleware, MoE kernels, ladder
+apareto_loader/vllm027/    the vLLM 0.27 plugin: loader, model, worker, scheduler, middleware, MoE kernels, nudging (ladder)
   cpu_experts_src/         C++/CUDA sources for the CPU-served experts of the rescue (JIT-built on first use)
-config/                    profiles.json: server options and R* bundles of the code profile and its 16/12/8 GB variants; ladder.json: the think-end
+config/                    profiles.json: server options and R* bundles of the code profile and its 16/12/8 GB variants; ladder.json: the nudging
                            ladder; vllm-0.27.1-stock.sha256: the reference stock-vLLM manifest
 scripts/                   entry points: server launcher, store builders, environment setup, run statistics
   serve.py                 start the server for one profile (wraps serve_bank.py)
@@ -50,7 +50,7 @@ dependency and is never vendored or patched.
   `vllm.general_plugins` entry point, so vLLM registers the apareto loader, model, worker, scheduler and
   middleware at startup. They take effect only when the launcher passes the matching flags
   (`--load-format apareto_bank`, `--worker-cls …`, `--scheduler-cls …`, `--middleware …`,
-  `--logits-processors …` for the ladder).
+  `--logits-processors …` for nudging).
 - Servers check the stock manifest at boot and refuse a modified vLLM.
 - Verification code (an audited worker and scheduler) is not in this tree. `scripts/serve_bank.py` takes such
   classes by name (`--audit --worker-cls … --scheduler-cls …`); keep audit code out of the package.
@@ -91,7 +91,7 @@ dependency and is never vendored or patched.
 
 - One SM120 GPU per server, default profile sized for 16 GB (developed on RTX 5070 Ti, measured on an i7-9700K / Z390 desktop, PCIe 3.0 x8); TP=1, PP=1, up to three requests decoding at
   once per server.
-- Host RAM for the whole expert store (17 GiB pinned) and paused requests' KV (25 GiB free per server, docs/MEMORY.md); NVMe for
+- Host RAM for the whole expert store (17 GiB pinned) and paused requests' KV (27 GiB free per server, docs/MEMORY.md); NVMe for
   the ~18 GB expert layer store built from the checkpoint by `scripts/build_layer_store.py`.
 - The repository holds code and R\* bundles only. `scripts/local_env.sh` keeps every cache (HF, torch, triton,
   vLLM, flashinfer, uv, tmp) in `$APARETO_HOME/cache`; venvs and run outputs live in `$APARETO_HOME` too, never in
