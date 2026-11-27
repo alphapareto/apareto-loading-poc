@@ -108,8 +108,13 @@ if [ -f "$MODEL/config.json" ] && [ -f "$MODEL/model.safetensors.index.json" ]; 
 elif [ "$SKIP_MODEL" = 1 ]; then
   die "--skip-model given but no checkpoint at $MODEL"
 else
+  # The files are named: with several patterns after one --include, hf takes the rest as file names and drops the
+  # pattern, which left out every *.json.
   "$VENV/bin/hf" download "$MODEL_REPO" --revision "$MODEL_REVISION" --local-dir "$MODEL" \
-      --include '*.json' '*.jinja' '*.safetensors' '*.yaml' 'README.md'
+      config.json generation_config.json processor_config.json tokenizer.json tokenizer_config.json \
+      chat_template.jinja recipe.yaml README.md \
+      model.safetensors.index.json model.safetensors model_mtp.safetensors model_visual.safetensors
+  [ -f "$MODEL/config.json" ] || die "the checkpoint download left no config.json in $MODEL"
 fi
 "$PY" - "$MODEL" <<'EOF'
 import json, sys
