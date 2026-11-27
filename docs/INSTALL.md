@@ -14,6 +14,7 @@ files elsewhere.
 | host RAM | 25 GiB free per server; a 32 GB machine for one server | the whole expert store pinned (17 GiB), plus paused requests' KV; measured peak 25.9 GiB ([MEMORY.md](MEMORY.md)) |
 | disk | ~24 GB checkpoint + ~18 GB expert store, ~40 GB free while building, NVMe recommended | prefill reads experts from the store |
 | Python | [uv](https://docs.astral.sh/uv/) (recommended) or Python 3.12 | |
+| systemd | a systemd user session (`systemctl --user` works) | the launcher runs each server in its own scope with a memory limit; not available in most containers |
 
 The repository holds the code and the R\* bundles (`artifacts/`) only. Everything else goes under
 `$APARETO_HOME`, default `~/.apareto` ([apareto_loader/paths.py](../apareto_loader/paths.py)):

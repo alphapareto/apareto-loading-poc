@@ -35,8 +35,15 @@ def main(runs):
     rows = []
     for run in map(Path, runs):
         name, score = lighteval_score(run)
-        stats = server_summary(paths.results() / f'{run.name}_server')
-        rows.append({'run': run.name, 'metric': name, 'score': score, 'server': stats})
+        row = {'run': run.name, 'metric': name, 'score': score}
+        # run.sh: one server (<tag>_server). run_multi.sh: one per GPU (<tag>_server_gpu<device>).
+        several = sorted(paths.results().glob(f'{run.name}_server_gpu*_results.json'))
+        if several:
+            row['servers'] = {f.name[len(run.name) + 8:-len('_results.json')]:
+                              server_summary(paths.results() / f.name[:-len('_results.json')]) for f in several}
+        else:
+            row['server'] = server_summary(paths.results() / f'{run.name}_server')
+        rows.append(row)
     scores = [r['score'] for r in rows if isinstance(r['score'], (int, float))]
     out = {'task': TASK, 'runs': rows, 'n_seeds': len(scores),
            'mean': statistics.mean(scores) if scores else None,

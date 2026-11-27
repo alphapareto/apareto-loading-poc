@@ -9,6 +9,7 @@ systemd-oomd may then kill the whole terminal scope the server was launched from
 - is stopped by the harness if MemAvailable falls below a floor while it runs.
 """
 import os
+import shutil
 from pathlib import Path
 import subprocess
 
@@ -25,6 +26,13 @@ def mem_available():
 class HostMemoryGuard:
     def __init__(self, unit, pinned_bytes, reserve_bytes=8 * GIB, floor_bytes=2 * GIB, headroom_bytes=3 * GIB):
         self.unit, self.floor = unit, floor_bytes
+        session = shutil.which('systemd-run') and subprocess.run(
+            ['systemctl', '--user', 'show-environment'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if not session or session.returncode != 0:
+            raise RuntimeError('The server runs in a systemd user scope with a memory limit, and no systemd user '
+                               'session is reachable (`systemctl --user show-environment` fails). This is the case '
+                               'in most containers and in WSL without systemd. Run from a login session of a '
+                               'systemd-based Linux, or enable one with `loginctl enable-linger $USER`.')
         available = mem_available()
         if available < pinned_bytes + reserve_bytes:
             raise RuntimeError(f'Host RAM: MemAvailable {available / GIB:.1f} GiB < pinned tier '

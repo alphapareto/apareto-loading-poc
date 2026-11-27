@@ -16,7 +16,11 @@ for suffix in results.json manifest.sha256 vllm_path.txt requirements.lock; do
         exit 1
     fi
 done
-uv pip install --python "$APARETO_HOME/venv/bin/python" --no-deps --no-build-isolation -e .
+if command -v uv >/dev/null 2>&1; then
+    uv pip install --python "$APARETO_HOME/venv/bin/python" --no-deps --no-build-isolation -e .
+else
+    "$APARETO_HOME/venv/bin/python" -m pip install --no-deps --no-build-isolation -e .
+fi
 "$APARETO_HOME/venv/bin/python" scripts/record_environment.py \
   --out "$OUT/${APARETO_INSTALL_TAG}_results.json" \
   --manifest "$OUT/${APARETO_INSTALL_TAG}_manifest.sha256" \

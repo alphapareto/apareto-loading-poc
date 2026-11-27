@@ -213,6 +213,7 @@ penalty 1.5. The number is the mean of seeds 42, 1234 and 4158.
 bash runners/lcb/install.sh                       # once: lighteval in ~/.apareto/venv-lcb
 bash runners/lcb/run.sh 42 0                      # one seed on GPU 0
 DEVICES="0 1" bash runners/lcb/run_all.sh         # all three seeds over two GPUs
+bash runners/lcb/run_multi.sh 42 "0 1"            # one seed spread over two GPUs
 python3 runners/lcb/summarize.py ~/.apareto/results/lcb/lcb_s*
 ```
 
@@ -220,6 +221,11 @@ Each `run.sh` boots a fresh server with the `code` profile, runs lighteval again
 each seed is a separate boot. `SERVER_ARGS='--budget 4608'` passes options to the server. With several GPUs,
 `run_all.sh` splits the machine's cores evenly between the servers. Outputs go to `$APARETO_HOME/results/lcb/<tag>/`: the
 rendered `litellm_config.yaml`, lighteval's `results_*.json` and per-sample details, and the logs.
+
+`run_multi.sh` runs one seed on several GPUs at once: one server per GPU, and `runners/lcb/balance.py` in front
+of them, which sends each request to the server with the fewest requests in flight and changes nothing in it.
+lighteval runs once, with as many concurrent requests as the servers decode together. The published numbers were
+measured with `run.sh`, one server per seed.
 
 These settings differ from Red Hat's run:
 
